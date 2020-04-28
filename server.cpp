@@ -7,13 +7,10 @@
 #include <arpa/inet.h> //[04]
 #include <pthread.h> //[05]
 #include <unistd.h> 
-
 #define MAX_REQUEST 50
 #define MAX_LENGHT_MEX 2000
 
-char client_message[MAX_LENGHT_MEX];
-char buffer[MAX_LENGHT_MEX];
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; //[06]
+//pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; //[06]
 
 /*
 Ogni socket è definito da una socket pair ovvero IP_locale:porta_locale, IP_remoto:porta_remota.
@@ -32,17 +29,22 @@ Sequenza di operazioni per gestire un socket:
 */
 
 void * socketThread(void *arg){
-
+	struct sockaddr_in socketAddr;
+	socklen_t servaddr_len = sizeof(socketAddr);
+	char client_message[MAX_LENGHT_MEX];
+	char buffer[MAX_LENGHT_MEX];
 	int newSocket = *((int *)arg);
+	getsockname(newSocket,(struct sockaddr*)&socketAddr,&servaddr_len);
+	printf("Socket di ascolto: indirizzo IP %s, porta %d\n", (char *)inet_ntoa(socketAddr.sin_addr), ntohs(socketAddr.sin_port));
 	recv(newSocket , client_message , MAX_LENGHT_MEX , 0); //[07]
-	pthread_mutex_lock(&lock); //[08]
+	//pthread_mutex_lock(&lock); //[08]
 	char *message = (char*) malloc(sizeof(client_message)+20);
 	strcpy(message,"Hello Client : ");
 	strcat(message,client_message);
 	strcat(message,"\n");
 	strcpy(buffer,message);
 	free(message);
-	pthread_mutex_unlock(&lock);
+	//pthread_mutex_unlock(&lock);
 	sleep(1);
 	send(newSocket,buffer,13,0); //[09]
 	printf("Exit socketThread \n");
@@ -75,9 +77,9 @@ int main(){
         newSocket = accept(serverSocket, (struct sockaddr *) &serverStorage, &addr_size); //[16]
         if( pthread_create(&tid[i], NULL, socketThread, &newSocket) != 0 ) //[17]
            printf("Failed to create thread\n");
+		//printf("Numero di thread creati %d\n",i);
 		i = i + 1;
-        if( i >= MAX_REQUEST)
-        {
+        if( i >= MAX_REQUEST){
           i = 0;
           while(i < MAX_REQUEST){
           	pthread_join(tid[i++],NULL); //[18]
