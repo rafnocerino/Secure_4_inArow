@@ -7,10 +7,16 @@
 #include <arpa/inet.h> //[04]
 #include <pthread.h> //[05]
 #include <unistd.h> 
+#include <vector>
+#include <semaphore.h>
 #define MAX_REQUEST 50
 #define MAX_LENGHT_MEX 2000
 
-//pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; //[06]
+using namespace std;
+
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; //[06]
+sem_t indexesSem;
+vector<int> freeIndexesAvailableTID;
 
 /*
 Ogni socket è definito da una socket pair ovvero IP_locale:porta_locale, IP_remoto:porta_remota.
@@ -28,31 +34,51 @@ Sequenza di operazioni per gestire un socket:
 
 */
 
+struct threadArgument{
+	int newSocket;
+	int threadIndex;
+};
+
+vector<int> intializeFreeIndexesAvailableTID(){
+	vector<int> result;
+	for(int i=0;i<MAX_REQUEST;i++)
+		result.push_back(i);
+	return result;
+}
+
 void * socketThread(void *arg){
+	int newSocket = ((struct threadArgument*)arg)->newSocket;
+	int indexTID = ((struct threadArgument*)arg)->threadIndex;
+	//printf("In thread %d\n",indexTID);
 	struct sockaddr_in socketAddr;
 	socklen_t servaddr_len = sizeof(socketAddr);
 	char client_message[MAX_LENGHT_MEX];
 	char buffer[MAX_LENGHT_MEX];
-	int newSocket = *((int *)arg);
 	getsockname(newSocket,(struct sockaddr*)&socketAddr,&servaddr_len);
-	printf("Socket di ascolto: indirizzo IP %s, porta %d\n", (char *)inet_ntoa(socketAddr.sin_addr), ntohs(socketAddr.sin_port));
+	//printf("Socket di ascolto: indirizzo IP %s, porta %d\n", (char *)inet_ntoa(socketAddr.sin_addr), ntohs(socketAddr.sin_port));
 	recv(newSocket , client_message , MAX_LENGHT_MEX , 0); //[07]
-	//pthread_mutex_lock(&lock); //[08]
+	printf("Ricevuto %s.\n",client_message);
 	char *message = (char*) malloc(sizeof(client_message)+20);
-	strcpy(message,"Hello Client : ");
-	strcat(message,client_message);
+	sprintf(message, "Hello Client %d", indexTID);
 	strcat(message,"\n");
 	strcpy(buffer,message);
 	free(message);
-	//pthread_mutex_unlock(&lock);
 	sleep(1);
-	send(newSocket,buffer,13,0); //[09]
-	printf("Exit socketThread \n");
+	printf("Thread %d risponde.\n",indexTID);
+	send(newSocket,buffer,15,0); //[09]
 	close(newSocket);
+	pthread_mutex_lock(&lock);
+		freeIndexesAvailableTID.push_back(indexTID);	
+	pthread_mutex_unlock(&lock);
+	//printf("Thread %d signal\n",indexTID); 
+	sem_post(&indexesSem);	
+	printf("Exit socketThread \n");
 	pthread_exit(NULL);
 }
 
 int main(){
+	freeIndexesAvailableTID = intializeFreeIndexesAvailableTID();
+	sem_init(&indexesSem,0,MAX_REQUEST);
 	int serverSocket, newSocket;
 	struct sockaddr_in serverAddr;
 	struct sockaddr_storage serverStorage;
@@ -70,23 +96,21 @@ int main(){
 		printf("Listening\n");
 	else
 		printf("Error in the listen\n");
-	pthread_t tid[60]; //[15]
-    int i = 0;
+	pthread_t tid[MAX_REQUEST]; //[15]
     while(1){
+		struct threadArgument *currentThreadArgs = (struct threadArgument *)malloc(sizeof(struct threadArgument));
         addr_size = sizeof serverStorage;
-        newSocket = accept(serverSocket, (struct sockaddr *) &serverStorage, &addr_size); //[16]
-        if( pthread_create(&tid[i], NULL, socketThread, &newSocket) != 0 ) //[17]
+		sem_wait(&indexesSem);
+		pthread_mutex_lock(&lock);
+			currentThreadArgs->threadIndex = freeIndexesAvailableTID.back();
+			freeIndexesAvailableTID.pop_back();
+		pthread_mutex_unlock(&lock);
+        currentThreadArgs->newSocket = accept(serverSocket, (struct sockaddr *) &serverStorage, &addr_size); //[16]
+		printf("Creo thread con index: %d\n",currentThreadArgs->threadIndex);
+        if( pthread_create(&tid[currentThreadArgs->threadIndex], NULL, socketThread, (void*)currentThreadArgs) != 0 ) //[17]
            printf("Failed to create thread\n");
-		//printf("Numero di thread creati %d\n",i);
-		i = i + 1;
-        if( i >= MAX_REQUEST){
-          i = 0;
-          while(i < MAX_REQUEST){
-          	pthread_join(tid[i++],NULL); //[18]
-          }
-          i = 0;
-        }
     }
+  sem_destroy(&indexesSem);
   return 0;
 }
 
