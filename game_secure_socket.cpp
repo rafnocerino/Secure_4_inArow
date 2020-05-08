@@ -6,6 +6,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <stdio.h>
+//#include <protocol_constant.h>
 #include <stdlib.h>
 #include <unistd.h>
 using namespace std;
@@ -81,9 +82,12 @@ int waitColumnValue(int sd, sockaddr_in* adversary_socket)
 		char integer_column[4];
 		int playerMoveColumn=0,ret;
 		cout<<"Waiting adversary move..."<<endl;
+		// must be implemented a inactive politic
 		ret=recvfrom(sd,integer_column,sizeof(integer_column),0,(struct sockaddr*)adversary_socket,&len);
 		memcpy(&playerMoveColumn,integer_column,sizeof(playerMoveColumn));			
 		cout<<playerMoveColumn<<endl;	
+		//check malforme
+		//send ack or malformed
 		return playerMoveColumn;
 }
 
@@ -228,9 +232,12 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 	// if my move send it to the adversary
 	if(playerId==myPlayerId)
 	{
+		//msg structure
 		//insert content
 		memcpy(integer_column, &playerMoveColumn,sizeof(playerMoveColumn));	
 		ret=sendto(sd,integer_column,sizeof(integer_column),0,(struct sockaddr*)adversary_socket,sizeof(*adversary_socket));
+
+		//wait for ack or malformed msg 
 	}
 	if(winner)
 	{
@@ -255,7 +262,7 @@ int gameStart()
 	char  gameMatrix[6][7];
 	char ad_soc_num[10];
 	
-	playerId=initiateGame(gameMatrix);
+	myPlayerId=initiateGame(gameMatrix);
 	
 	/********************************** SOCKET CREATION **************************************/
 	sd=socket(AF_INET, SOCK_DGRAM, 0);
@@ -264,7 +271,7 @@ int gameStart()
 	//the socket number used for this service is 2020
 	adversary_socket.sin_port=htons(atol("2020"));
 	
-	if(playerId==1){
+	if(myPlayerId==1){
 		//second player must have an open socket to listen
 		adversary_socket.sin_addr.s_addr=INADDR_ANY; 
 		check_bind=bind(sd, (struct sockaddr*)&adversary_socket, sizeof(adversary_socket));
