@@ -1,151 +1,132 @@
-//Codice per la creazione di un server multithreading per la gestione di richieste TCP/IP in parallelo
-#include <stdio.h> 
-#include <stdlib.h> //[01]
-#include <sys/socket.h> //[02]
-#include <netinet/in.h> //[03] 
+#include <unistd.h>
+#include <sys/socket.h> //[]
+#include <arpa/inet.h>
+#include <netinet/in.h> //[]
+#include <sys/types.h>
+#include <stdlib.h>
 #include <string.h>
-#include <arpa/inet.h> //[04]
-#include <pthread.h> //[05]
-#include <unistd.h> 
-#include <vector>
+#include <stdio.h>
 #include <semaphore.h>
-#define MAX_REQUEST 50
-#define MAX_LENGHT_MEX 2000
+#include <vector>
+#include <pthread.h>
+#include <math.h>
+#include <openssl/evp.h>
+#include "protocol_constant.h"
+#include "check_message.h"
 
 using namespace std;
 
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER; //[06]
+#define SERVER_PORT 7799
+#define MAX_REQUEST 50
+
+pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
-vector<int> freeIndexesAvailableTID;
+vector<int> indexesAvailableTID;
 
-/*
-Ogni socket è definito da una socket pair ovvero IP_locale:porta_locale, IP_remoto:porta_remota.
-Sequenza di operazioni per gestire un socket:
-
-1.    creazione del socket;
-
-2.    assegnazione dell'indirizzo;
-
-3.    connessione o attesa di connessione;
-
-4.    invio o ricezione dei dati;
-
-5.    chiusura del socket.
-
-*/
-
-struct threadArgument{
-	int newSocket;
+struct request{
 	int threadIndex;
+	socklen_t clientAddressLen;
+	struct sockaddr_in clientAddress;
+	char loginMessage[SIZE_MESSAGE_LOGIN];
+	unsigned int sizeMessageRecived;
 };
 
-vector<int> intializeFreeIndexesAvailableTID(){
+vector<int> intializeIndexesAvailableTID(){
 	vector<int> result;
 	for(int i=0;i<MAX_REQUEST;i++)
 		result.push_back(i);
 	return result;
 }
 
-void * socketThread(void *arg){
-	int newSocket = ((struct threadArgument*)arg)->newSocket;
-	int indexTID = ((struct threadArgument*)arg)->threadIndex;
-	//printf("In thread %d\n",indexTID);
-	struct sockaddr_in socketAddr;
-	socklen_t servaddr_len = sizeof(socketAddr);
-	char client_message[MAX_LENGHT_MEX];
-	char buffer[MAX_LENGHT_MEX];
-	getsockname(newSocket,(struct sockaddr*)&socketAddr,&servaddr_len);
-	//printf("Socket di ascolto: indirizzo IP %s, porta %d\n", (char *)inet_ntoa(socketAddr.sin_addr), ntohs(socketAddr.sin_port));
-	recv(newSocket , client_message , MAX_LENGHT_MEX , 0); //[07]
-	printf("Ricevuto %s.\n",client_message);
-	char *message = (char*) malloc(sizeof(client_message)+20);
-	sprintf(message, "Hello Client %d", indexTID);
-	strcat(message,"\n");
-	strcpy(buffer,message);
-	free(message);
-	sleep(1);
-	printf("Thread %d risponde.\n",indexTID);
-	send(newSocket,buffer,15,0); //[09]
-	close(newSocket);
-	pthread_mutex_lock(&lock);
-		freeIndexesAvailableTID.push_back(indexTID);	
-	pthread_mutex_unlock(&lock);
-	//printf("Thread %d signal\n",indexTID); 
-	sem_post(&indexesSem);	
-	printf("Exit socketThread \n");
+void* serveClient(void *arg){
+	unsigned int sizeMessageRecived = ((struct request*)arg)->sizeMessageRecived;
+	unsigned char* loginMessage;
+	loginMessage = (unsigned char*) malloc(sizeMessageRecived);	
+    memcpy(loginMessage,((struct request*)arg)->loginMessage, sizeMessageRecived);
+	int threadIndex = ((struct request*)arg)->threadIndex;
+	socklen_t clientAddressLen = ((struct request*)arg)->clientAddressLen;
+	struct sockaddr_in clientAddress = ((struct request*)arg)->clientAddress;
+	pthread_mutex_lock(&lockIndexesAvailableTID);
+		indexesAvailableTID.push_back(threadIndex);	
+	pthread_mutex_unlock(&lockIndexesAvailableTID);
+	printf("Messaggio ricevuto:\n");
+ 	BIO_dump_fp (stdout, (const char *)loginMessage, sizeMessageRecived);
+	uint8_t opcode;
+	uint8_t seqNum;
+	uint8_t len;
+	char* username;
+	username = (char *) malloc(sizeMessageRecived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
+	int memcpyPos = 0; 
+
+	memcpy(&opcode, loginMessage + memcpyPos,SIZE_OPCODE);
+	printf("OPCODE RICEVUTO: %u.\n",opcode);
+	memcpyPos += SIZE_OPCODE;
+
+	memcpy(&seqNum, loginMessage +memcpyPos,SIZE_SEQNUMBER);
+	printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
+	memcpyPos += SIZE_SEQNUMBER;
+	
+	memcpy(&len, loginMessage + memcpyPos,SIZE_LEN);
+	printf("LEN. RICEVUTA: %u.\n",len);
+	memcpyPos += SIZE_LEN;
+
+	memcpy(username,loginMessage + memcpyPos,sizeMessageRecived - memcpyPos); 
+	printf("USERNAME. RICEVUTO: %s.\n",username);
+	
+	if(check_message(OPCODE_LOGIN,loginMessage,sizeMessageRecived)){
+		printf("Il messaggio di login ricevuto e' corretto.\n");
+	}else{
+		printf("Il messaggio di login ricevuto e' malformato.\n");
+	}
+    sem_post(&indexesSem);	
+	printf("Esco dal thread serveClient.\n");
 	pthread_exit(NULL);
 }
 
 int main(){
-	freeIndexesAvailableTID = intializeFreeIndexesAvailableTID();
+	indexesAvailableTID = intializeIndexesAvailableTID();
 	sem_init(&indexesSem,0,MAX_REQUEST);
-	int serverSocket, newSocket;
-	struct sockaddr_in serverAddr;
-	struct sockaddr_storage serverStorage;
-	socklen_t addr_size;
-	serverSocket = socket(PF_INET, SOCK_STREAM, 0); //[10]
-	// Configure settings of the server address struct
-	// Address family = Internet 
-	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(7799); //[11]
- 	serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); //[12]
-	//Set all bits of the padding field to 0 
-	memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
-	bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)); //[13]
-	if(listen(serverSocket,MAX_REQUEST)==0) //[14]
-		printf("Listening\n");
-	else
-		printf("Error in the listen\n");
-	pthread_t tid[MAX_REQUEST]; //[15]
-    while(1){
-		struct threadArgument *currentThreadArgs = (struct threadArgument *)malloc(sizeof(struct threadArgument));
-        addr_size = sizeof serverStorage;
+	int serverSocket;
+	struct sockaddr_in serverAddress;
+	memset(&serverAddress,0,sizeof(serverAddress));
+	serverSocket = socket(AF_INET,SOCK_DGRAM,0); //[]
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_port = htons(SERVER_PORT); //[]
+	serverAddress.sin_addr.s_addr = INADDR_ANY; //[]
+	if(bind(serverSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0){ //[]
+		printf("ERRORE: e' stato riscontrato un errore nella fase di bind.\n");
+		exit(-1);
+	}else{
+		printf("Creato socket di ascolto.\n");
+	}
+	pthread_t tid[MAX_REQUEST];
+	while(1){
+		struct request* currentRequest = (struct request*)malloc(sizeof(struct request));
+		unsigned int sizeClientAddress = sizeof(currentRequest->clientAddress);
 		sem_wait(&indexesSem);
-		pthread_mutex_lock(&lock);
-			currentThreadArgs->threadIndex = freeIndexesAvailableTID.back();
-			freeIndexesAvailableTID.pop_back();
-		pthread_mutex_unlock(&lock);
-        currentThreadArgs->newSocket = accept(serverSocket, (struct sockaddr *) &serverStorage, &addr_size); //[16]
-		printf("Creo thread con index: %d\n",currentThreadArgs->threadIndex);
-        if( pthread_create(&tid[currentThreadArgs->threadIndex], NULL, socketThread, (void*)currentThreadArgs) != 0 ) //[17]
-           printf("Failed to create thread\n");
-    }
-  sem_destroy(&indexesSem);
-  return 0;
+		pthread_mutex_lock(&lockIndexesAvailableTID);
+			currentRequest->threadIndex = indexesAvailableTID.back();
+			indexesAvailableTID.pop_back();
+		pthread_mutex_unlock(&lockIndexesAvailableTID);
+		currentRequest->sizeMessageRecived = recvfrom(serverSocket,&currentRequest->loginMessage,SIZE_MESSAGE_LOGIN,0,(struct sockaddr*)&currentRequest->clientAddress,&currentRequest->clientAddressLen);
+		if(currentRequest->sizeMessageRecived < 0){
+			printf("ERRORE: il messaggio non e' stato ricevuto correttamente dal main socket.\n"); 
+		}else{
+			if(pthread_create(&tid[currentRequest->threadIndex],NULL,serveClient,(void*)currentRequest) != 0 ){
+				printf("ERRORE: e' stato riscontrato un errore nella fase di creazione di un thread.\n");
+			}
+		}
+	}
+	sem_destroy(&indexesSem);
+	return 0;
 }
 
-/*------------------------------------------------------COMMENTI------------------------------------------------------------------------------
-[01] stdlib serve per l'allocazione dello heap (malloc)
-[02] sys/socket definisce alcune strutture dati per la gestione dei socket:
-- socklen_t
-- sockaddr_storage
-I metodi:
-- int socket(int domain, int type, int protocol)
-- int bind(int socket, const struct sockaddr *address, socklen_t address_len)
-- int listen(int socket, int backlog)
-- int accept(int sd, struct sockaddr *ind, socklen_t *indlen)
-- int recv(int sd, void *buf, int lun, int opzioni)
-- int send(int sd, void *buf, int lun, int opzioni)
-[03] sockaddr_in(struttura per indirizzo e porta)
-[04] definisce il seguente metodo:
--in_addr_t inet_addr(const char *cp);
-[05] definsice la seguente struttura dati:
-- pthread_mutex_t
-definisce il seguenti metodi:
-- int pthread_create(pthread_t *thread,pthread_attr_t *attr,void *(*start_routine)(void *), void * arg)
-- int pthread_join(pthread_t th, void **thread_return)
-- int pthread_mutex_lock(pthread_mutex_t *mutex)
-[06] PTHREAD_MUTEX_INITIALIZER è la MACRO definita per quanto riguarda l'inizializzazione della variabile lock
-[07] La recv riceve dati dal socket newSocket e l'inserisce all'interno della struttura dati client_message e indica la lunghezza dei dati che si vogliono ricevere
-[08] Il lock serve in quanto buffer e client_message sono risorse condivise tra tutti i thread e perciò devono essere bloccate
-[09] In modo analogo alla recv la send invia i dati contenuti nel buffer attraverso il socket specificato come primo parametro. La lunghezza dei dati da inviare è poi specificata come terzo parametro mentre il quarto è ancora una volta lasciato a 0
-[10] Il metodo socket crea un socket in particolare PF_INET serve a specificare che si utilizzano indirizzi IPv4, SOCK_STREAM che si utilizza TCP possiamo trascurare il terzo parametro 
-[11] htons assicura che i numeri vengono memorizzati in memoria secondo il byte order della rete che prevede che i byte più significativi vengano messi prima quindi assicura che i numeri siano memorizzati come lo sarebbero in una macchina big endian. 
-[12] Il metodo inet_addr ha il compito di tradurre un indirizzo IPv4 in dotted notation da una stringa a un numero che può essere utilizzato dalla rete 127.0.0.1 è l'indirizzo localhost
-[13] Il metodo bind serve ad assegnare un indirizzo locale ad un socket (quindi la prima metà di un socket pair) e serve quindi a specificare su quale IP:porta il server si metterà in ascolto. Il client invece non deve andare a invocare la bind in quanto sarà il kernel ad assegnargli la porta mentre l'IP sarà quello dell'interfaccia di rete utilizzata
-[14] In un server TCP occorre indicare che il programma si deve mettere in attesa di ricevere delle connessioni da parte dei client listen fa questo e inoltre la dimensione della coda di richieste pendenti (richieste arrivate mentre se ne stava servendo un'altra). Questa funzione ritorna 0 in caso di successo
-[15] Struttura dati che serve a memorizzare i pthread_id
-[16] Il metodo accept accetta una connessione sul serverSocket mentre gli altri due parametri sono l'indirizzo del client che ha stabilito tale connessione e la lunghezza di tale indirizzo. L'effetto di tale metodo è la creazione di un nuovo socket con le stesse caratteristiche del serverSocket che viene restituito da tale metodo. L'effettivo scambio di dati avviene su tale nuovo socket mentre il socket serverSocket si rimette in ascolto per eventuali nuove connessioni 
-[17] Il metodo pthread_create si occupa della creazione di un thread per la gestione di ciascuna connessione in particolare tid[i] sarà la variabile che conterrà l'id del nuovo thread, il secondo parametro è impostato a NULL in quanto non ci sono attributi da associare al thread, il terzo è il puntatore al metodo che il nuovo thread andrà ad eseguire mentre il quarto sono gli argomenti da passare a tale metodo. Il metodo ritorna 0 in caso di successo altrimenti un codice di errore
-[18] Nel caso in cui vi siano più di connessioni di quelle permesse il server non accetta più connessioni ma tramite la pthread_join si mette in attesa che tutti i thread terminino la loro esecuzione
-*/
+/*-----------------------------------------------------COMMENTI----------------------------------------------------------------------------
+[] sys/socket.h definisce i seguenti metodi:
+   - int socket(int domain, int type, int protocol)	
+[] netinet/in.h contiene la struttura dati sockaddr_in necessaria a contenere le informazioni su porta e indirizzo
+[] il metodo socket crea un socket in particolare PF_INET serve a specificare che si utilizzano indirizzi IPv4, SOCK_DGRAM che verrà usato il protocollo UDP mentre il terzo parametro può essere trascurato
+[] htons assicura che i numeri vengono memorizzati in memoria secondo il byte order della rete che prevede che i byte più significativi vengano messi prima quindi assicura che i numeri siano memorizzati come lo sarebbero in una macchina big endian. 
+[] Nel server INADDR_ANY è un argomento della bind che indica che il socket deve mettersi in ascolto su tutte le interfacce.
+[] Il metodo bind serve ad assegnare un indirizzo locale ad un socket (quindi la prima metà di un socket pair) e serve quindi a specificare su quale IP:porta il server si metterà in ascolto. Il client invece non deve andare a invocare la bind in quanto sarà il kernel ad assegnargli la porta mentre l'IP sarà quello dell'interfaccia di rete utilizzata
+[] Definizione delle buffer che conterrà i messaggi di login dei vari client che arrivano al server*/
