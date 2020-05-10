@@ -6,4 +6,7 @@
 #include <stdint.h>
 using namespace std;
 
+bool check_ack(int socket,unsigned char* buffer,unsigned int messageLength,uint8_t exp_opcode,uint8_t exp_seq_numb);
+bool check_challengeRequest(int socket, unsigned char* buffer, unsigned int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,
+                            unsigned char* challenging_user, int& challenge_id,uint8_t& rcv_seq_numb);
 bool check_message(uint8_t desiredOpcode,unsigned char* message,unsigned int messageLength,int desiredSequenceNumber = -1);
