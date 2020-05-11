@@ -1,0 +1,5 @@
+Futura organizzazione della repository:
+cartella principale con makefile che server a richiamare i makefile delle due sotto directory (vedi dopo)
+nella cartella principale tre sotto directory che sono client e server e quella per la documentazione ognuna con tutto l'occorrente per farle eseguire e con il loro makefile
+in questo modo con un'unica chiamata da terminale con la make riusciamo a compilare tutto <3
+

@@ -13,11 +13,13 @@
 #include <openssl/evp.h>
 #include "protocol_constant.h"
 #include "check_message.h"
+#include "send_message.h"
 
 using namespace std;
 
 #define SERVER_PORT 7799
 #define MAX_REQUEST 50
+#define BUF_SIZE 512
 
 pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
@@ -51,32 +53,28 @@ void* serveClient(void *arg){
 	pthread_mutex_unlock(&lockIndexesAvailableTID);
 	printf("Messaggio ricevuto:\n");
  	BIO_dump_fp (stdout, (const char *)loginMessage, sizeMessageRecived);
-	uint8_t opcode;
 	uint8_t seqNum;
-	uint8_t len;
 	char* username;
 	username = (char *) malloc(sizeMessageRecived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
-	int memcpyPos = 0; 
-
-	memcpy(&opcode, loginMessage + memcpyPos,SIZE_OPCODE);
-	printf("OPCODE RICEVUTO: %u.\n",opcode);
-	memcpyPos += SIZE_OPCODE;
-
-	memcpy(&seqNum, loginMessage +memcpyPos,SIZE_SEQNUMBER);
-	printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
-	memcpyPos += SIZE_SEQNUMBER;
-	
-	memcpy(&len, loginMessage + memcpyPos,SIZE_LEN);
-	printf("LEN. RICEVUTA: %u.\n",len);
-	memcpyPos += SIZE_LEN;
-
-	memcpy(username,loginMessage + memcpyPos,sizeMessageRecived - memcpyPos); 
-	printf("USERNAME. RICEVUTO: %s.\n",username);
-	
-	if(check_message(OPCODE_LOGIN,loginMessage,sizeMessageRecived)){
-		printf("Il messaggio di login ricevuto e' corretto.\n");
+	unsigned char* sendBuffer;
+	sendBuffer = (unsigned char*)malloc(BUF_SIZE);	
+	int threadSocket = socket(AF_INET,SOCK_DGRAM,0);
+	struct sockaddr_in threadSockAddr;	
+	threadSockAddr.sin_family=AF_INET;
+	threadSockAddr.sin_port=htons(0);
+	threadSockAddr.sin_addr.s_addr=INADDR_ANY;
+	if(bind(threadSocket,(struct sockaddr*)&threadSockAddr,sizeof(threadSockAddr)) < 0){
+		printf("ERRORE: e' stato riscontrato un errore nella fase di bind del socket per comunicare con il server.\n");
 	}else{
-		printf("Il messaggio di login ricevuto e' malformato.\n");
+		if(check_login(loginMessage,sizeMessageRecived,&seqNum,username)){
+			printf("Il messaggio di login ricevuto e' corretto.\n");
+			printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
+			printf("USERNAME. RICEVUTO: %s.\n",username);
+			send_ACK(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress));
+		}else{
+			printf("Il messaggio di login ricevuto e' malformato.\n");
+			send_malformedMsg(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress));
+		}		
 	}
     sem_post(&indexesSem);	
 	printf("Esco dal thread serveClient.\n");
@@ -102,13 +100,13 @@ int main(){
 	pthread_t tid[MAX_REQUEST];
 	while(1){
 		struct request* currentRequest = (struct request*)malloc(sizeof(struct request));
-		unsigned int sizeClientAddress = sizeof(currentRequest->clientAddress);
+		unsigned int sizeClientAddress = sizeof(struct sockaddr_in);
 		sem_wait(&indexesSem);
 		pthread_mutex_lock(&lockIndexesAvailableTID);
 			currentRequest->threadIndex = indexesAvailableTID.back();
 			indexesAvailableTID.pop_back();
 		pthread_mutex_unlock(&lockIndexesAvailableTID);
-		currentRequest->sizeMessageRecived = recvfrom(serverSocket,&currentRequest->loginMessage,SIZE_MESSAGE_LOGIN,0,(struct sockaddr*)&currentRequest->clientAddress,&currentRequest->clientAddressLen);
+		currentRequest->sizeMessageRecived = recvfrom(serverSocket,&currentRequest->loginMessage,SIZE_MESSAGE_LOGIN,0,(struct sockaddr*)&currentRequest->clientAddress ,&sizeClientAddress);
 		if(currentRequest->sizeMessageRecived < 0){
 			printf("ERRORE: il messaggio non e' stato ricevuto correttamente dal main socket.\n"); 
 		}else{
@@ -121,7 +119,7 @@ int main(){
 	return 0;
 }
 
-/*-----------------------------------------------------COMMENTI----------------------------------------------------------------------------
+/*----------------------------------COMMENTI----------------------------------------------------------------------------
 [] sys/socket.h definisce i seguenti metodi:
    - int socket(int domain, int type, int protocol)	
 [] netinet/in.h contiene la struttura dati sockaddr_in necessaria a contenere le informazioni su porta e indirizzo
@@ -129,4 +127,6 @@ int main(){
 [] htons assicura che i numeri vengono memorizzati in memoria secondo il byte order della rete che prevede che i byte più significativi vengano messi prima quindi assicura che i numeri siano memorizzati come lo sarebbero in una macchina big endian. 
 [] Nel server INADDR_ANY è un argomento della bind che indica che il socket deve mettersi in ascolto su tutte le interfacce.
 [] Il metodo bind serve ad assegnare un indirizzo locale ad un socket (quindi la prima metà di un socket pair) e serve quindi a specificare su quale IP:porta il server si metterà in ascolto. Il client invece non deve andare a invocare la bind in quanto sarà il kernel ad assegnargli la porta mentre l'IP sarà quello dell'interfaccia di rete utilizzata
-[] Definizione delle buffer che conterrà i messaggi di login dei vari client che arrivano al server*/
+[] Definizione delle buffer che conterrà i messaggi di login dei vari client che arrivano al server
+[] A questo punto sia che il messaggio sia corretto sia che non lo sia devo creare un nuovo socket per rispondere al client*/
+

@@ -41,5 +41,13 @@ int main(){
 	printf("Messaggio inviato:\n");
  	BIO_dump_fp (stdout, (const char *)buf, memcpyPos);
 	sendto(sock, buf, memcpyPos, 0, (struct sockaddr*)&sv_addr, sizeof(struct sockaddr_in));
+	//Ricezione dell'ACK
+	struct sockaddr_in serverAddress;
+	free(buf);
+	socklen_t size = sizeof(struct sockaddr_in);
+	buf = (unsigned char*)malloc(SIZE_MESSAGE_ACK);
+	int received = recvfrom(sock, buf, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)&serverAddress,&size);
+	printf("Messaggio ricevuto:\n");
+ 	BIO_dump_fp (stdout, (const char *)buf, received);
 	return 0;
 }
