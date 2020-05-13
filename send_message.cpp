@@ -16,7 +16,7 @@ using namespace std;
 
 #define BUF_SIZE 512
 
-//aggiunte send challenge refused e accepted --> da pullare solo loro sulla versione di dario
+
 
 void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, int challenge_id, sockaddr_in* sv_addr_challenge, int addr_size) {
 
