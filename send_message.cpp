@@ -1,4 +1,5 @@
 #include "send_message.h"
+
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -15,8 +16,54 @@ using namespace std;
 
 #define BUF_SIZE 512
 
-void send_malformedMsg(int socket, unsigned char* buffer, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
+//aggiunte send challenge refused e accepted --> da pullare solo loro sulla versione di dario
+
+void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, int challenge_id, sockaddr_in* sv_addr_challenge, int addr_size) {
+
+    uint8_t op_code = OPCODE_CHALLENGE_REFUSED;
+    uint8_t seqnumb = seq_numb;
+    int id = challenge_id;
+    int pos=0;
+
+    memset(buffer,0,BUF_SIZE);
+    memcpy(buffer,&op_code,SIZE_OPCODE);
+    pos+=SIZE_OPCODE;
+    memcpy(buffer+pos,&seqnumb,SIZE_SEQNUMBER);
+    pos+=SIZE_SEQNUMBER;
+    memcpy(buffer+pos,&id,sizeof(id));
+    pos+=sizeof(id);
+
+    int ret=sendto(socket,buffer,pos,0,(struct sockaddr*)sv_addr_challenge,addr_size);
+    if (ret < SIZE_MESSAGE_CHALLENGE_REFUSED) {
+        perror("There was an error during the sending of the malformed msg ! \n");
+        exit(-1);
+    }
+}
+
+void send_challengeAccepted(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr_challenging, int addr_size,
+                            int challenge_id) {
+    uint8_t opcode = OPCODE_CHALLENGE_ACCEPTED;
+    uint8_t seqnumb = seq_numb;
     int pos = 0;
+    int id = challenge_id;
+
+    memset(buffer, 0, BUF_SIZE);
+    memcpy(buffer, &opcode, SIZE_OPCODE);
+    pos += SIZE_OPCODE;
+    memcpy(buffer + pos, &seqnumb, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+    memcpy(buffer + pos, &id, sizeof(id));
+    pos += sizeof(id);
+
+    int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr_challenging, addr_size);
+    if (ret < SIZE_MESSAGE_CHALLENGE_ACCEPTED) {
+        perror("There was an error during the sending of the malformed msg ! \n");
+        exit(-1);
+    }
+}
+
+void send_malformedMsg(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
+   int pos = 0;
 	uint8_t opcodeMex = OPCODE_MALFORMED_MEX;
 	uint8_t seqNumMex = seq_numb;
     memset(buffer, 0, BUF_SIZE);
@@ -35,8 +82,7 @@ void send_malformedMsg(int socket, unsigned char* buffer, uint8_t seq_numb, sock
     close(socket);
     //exit(-1);
 }
-
-void send_ACK(int socket, unsigned char* buffer, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
+void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
     int pos = 0;
     int ret;
 	uint8_t seqNumMex = seq_numb;
@@ -54,13 +100,13 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t seq_numb, sockaddr_in* 
     }
 }
 
-void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_t len, uint8_t op_code, uint8_t seq_numb, uint8_t status_code, sockaddr_in* sv_addr, int addr_size) {
-    
-	int pos = 0;
+void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_t user_size, uint8_t op_code, uint8_t seq_numb, uint8_t status_code,
+                       sockaddr_in* sv_addr, int addr_size) {
+    int pos = 0;
 	uint8_t seqNumMex = seq_numb;
     uint8_t opcodeMex = OPCODE_UPDATE_STATUS;
 	uint8_t statusCodeMex = status_code;
-	uint8_t lenMex = len;
+	uint8_t lenMex = user_size;
 	memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcodeMex, SIZE_OPCODE);
     pos += SIZE_OPCODE;
