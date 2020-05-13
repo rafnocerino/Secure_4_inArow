@@ -20,9 +20,9 @@ using namespace std;
 
 void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, int challenge_id, sockaddr_in* sv_addr_challenge, int addr_size) {
 
-    uint8_t op_code = OPCODE_CHALLENGE_REFUSED;
-    uint8_t seqnumb = seq_numb;
-    int id = challenge_id;
+    uint8_t op_code = htons(OPCODE_CHALLENGE_REFUSED);
+    uint8_t seqnumb = htons(seq_numb);
+    int id = htons(challenge_id);
     int pos=0;
 
     memset(buffer,0,BUF_SIZE);
@@ -42,10 +42,10 @@ void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, 
 
 void send_challengeAccepted(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr_challenging, int addr_size,
                             int challenge_id) {
-    uint8_t opcode = OPCODE_CHALLENGE_ACCEPTED;
-    uint8_t seqnumb = seq_numb;
+    uint8_t opcode = htons(OPCODE_CHALLENGE_ACCEPTED);
+    uint8_t seqnumb = htons(seq_numb);
     int pos = 0;
-    int id = challenge_id;
+    int id = htons(challenge_id);
 
     memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcode, SIZE_OPCODE);
@@ -64,8 +64,8 @@ void send_challengeAccepted(int socket, unsigned char* buffer, uint8_t op_code, 
 
 void send_malformedMsg(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
    int pos = 0;
-	uint8_t opcodeMex = OPCODE_MALFORMED_MEX;
-	uint8_t seqNumMex = seq_numb;
+	uint8_t opcodeMex = htons(OPCODE_MALFORMED_MEX);
+	uint8_t seqNumMex = htons(seq_numb);
     memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcodeMex, SIZE_OPCODE);
     pos += SIZE_OPCODE;
@@ -85,8 +85,8 @@ void send_malformedMsg(int socket, unsigned char* buffer, uint8_t op_code, uint8
 void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
     int pos = 0;
     int ret;
-	uint8_t seqNumMex = seq_numb;
-    uint8_t opcodeMex = OPCODE_ACK;
+	uint8_t seqNumMex = htons(seq_numb);
+    uint8_t opcodeMex = htons(OPCODE_ACK);
 	memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcodeMex, SIZE_OPCODE);
     pos += SIZE_OPCODE;
@@ -103,10 +103,10 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
 void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_t user_size, uint8_t op_code, uint8_t seq_numb, uint8_t status_code,
                        sockaddr_in* sv_addr, int addr_size) {
     int pos = 0;
-	uint8_t seqNumMex = seq_numb;
-    uint8_t opcodeMex = OPCODE_UPDATE_STATUS;
-	uint8_t statusCodeMex = status_code;
-	uint8_t lenMex = user_size;
+	uint8_t seqNumMex = htons(seq_numb);
+    uint8_t opcodeMex = htons(OPCODE_UPDATE_STATUS);
+	uint8_t statusCodeMex = htons(status_code);
+	uint8_t lenMex = htons(user_size);
 	memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcodeMex, SIZE_OPCODE);
     pos += SIZE_OPCODE;
