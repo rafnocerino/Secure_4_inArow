@@ -104,17 +104,17 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     return true;
 }
 
-bool check_challenge_Unavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb, uint8_t& rcv_seq_numb) {
+bool check_challenge_Unavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb) {
     uint8_t rcv_opcode;
-    uint8_t seq;
+    uint8_t rcv_seq_numb;
     int pos = 0;
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     rcv_opcode=ntohs(rcv_opcode);
-    memcpy(&seq, buffer + pos, SIZE_SEQNUMBER);
+    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
-    rcv_seq_numb = ntohs(seq);
+    rcv_seq_numb = ntohs(rcv_seq_numb);
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         close(socket);
@@ -127,7 +127,7 @@ bool check_challenge_Unavailable(int socket, unsigned char* buffer, int messageL
     return true;
 }
 
-bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,uint8_t& recv_seq_numb,unsigned char* ip,unsigned char* adv_pubkey){
+bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,unsigned char* ip,unsigned char* adv_pubkey){
 
     uint8_t rcv_opcode;
     uint8_t seq;
