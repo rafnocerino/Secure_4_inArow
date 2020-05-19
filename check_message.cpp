@@ -37,11 +37,11 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
     uint8_t rcv_opcode;
     int pos = 0;
 
-    memcpy(&rcv_opcode, buffer, sizeof(rcv_opcode));
+    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     rcv_opcode=ntohs(rcv_opcode);
 
-    memcpy(&rcv_seq_numb, buffer + pos, sizeof(rcv_seq_numb));
+    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
     rcv_seq_numb=ntohs(rcv_seq_numb);
 
@@ -65,11 +65,11 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     uint8_t data_len;
     uint8_t seq, id;
 
-    memcpy(&rcv_opcode, buffer, sizeof(rcv_opcode));
+    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     rcv_opcode=ntohs(rcv_opcode);
 
-    memcpy(&seq, buffer + pos, sizeof(seq));
+    memcpy(&seq, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
     rcv_seq_numb = ntohs(seq);
 
@@ -97,7 +97,8 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
         return false;
     }
 
-    if (data_len != messageLength + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + 1) {
+    //prestare attenzione alla formula per il controllo della len
+    if (data_len != messageLength - SIZE_OPCODE - SIZE_SEQNUMBER - SIZE_CHALLENGE_NUMBER - SIZE_LEN ) {
         return false;
     }
 

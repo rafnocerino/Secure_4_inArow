@@ -18,6 +18,21 @@ using namespace std;
 
 //valutare la possibilità di fare funzione receive_ACK()---> riduce di molto la ridondanza
 
+void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
+
+    int size = addr_size;
+    int pos = 0;
+    memset(buffer, 0, BUF_SIZE);
+    received = recvfrom(socket, buffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)sv_addr, &size);
+
+    if (received < SIZE_MESSAGE_ACK) {
+        perror("There was an error during the reception of the ACK ! \n");
+        close(socket);
+        exit(-1);
+    }
+
+}
+
 void login() {}
 
 void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, char* user) {
@@ -30,7 +45,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     int pos = 0;
     struct timeval time;
     unsigned char challenging_user[255];
-    unsigned char chg_cmd[6];
+    char chg_cmd[6];
     unsigned char adv_ip[SIZE_IP_ADDRESS];
     unsigned char adv_pubkey[2049];
     int challenge_id;
@@ -43,7 +58,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     op_code = 10;
     seq_numb = 7;  // attualmente scelto cosi-->futuro randomizzato
     status_code = 2;
-    user_len = strlen(user);
+    user_len = strlen(user)+1;
 
     // sent the update status used to notify the server that the client will wait challenge requests
     send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, seq_numb, STATUS_WAITING, sv_addr_priv, addr_size);
@@ -56,6 +71,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
     if (received < SIZE_MESSAGE_ACK) {
         perror("There was an error during the reception of the ACK ! \n");
+        close(socket);
         exit(-1);
     }
 
@@ -76,14 +92,20 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     pos = 0;
 
     // call the recvfrom in order to wait a challenge request, if a challenge request is not recevide after x seconds the client leaves the wait mode
+    
     setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
     // please remember to reset the timer once used
-    received = recvfrom(socket, buffer, 258, 0, (struct sockaddr*)sv_addr_challenge, &size);
+    received = recvfrom(socket, buffer, SIZE_MESSAGE_CHALLENGE_REQUEST, 0, (struct sockaddr*)sv_addr_challenge, &size);
 
     if (received == 0) {  // timeout elapsed
 
         cout << "No challenge received in 5 minutes, the user will be redirected to the main menu! " << endl;
         pos = 0;
+
+        //reset timer 
+        time.tv_sec = 0;  
+        time.tv_usec = 0;
+        setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
 
         // the client has to leave the wait mode but before has to notify the server that it is no more available for receive challenges
         // so it sends on its "associated port" of the server the update status (idle) msg
@@ -130,15 +152,20 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         send_ACK(socket, buffer, OPCODE_ACK, rcv_seq_numb, sv_addr_challenge, addr_size);
 
         cout << "Challenge request received from: " << challenging_user << " ! \n";
-        cout << "Write ACCEPT to play othervise write REFUSE \n";
+        cout << "Write ACCEPT to play otherwise write REFUSE \n";
         cin >> chg_cmd;
 
-        while (strcmp((char*)chg_cmd, "ACCEPT") != 0 && strcmp((char*)chg_cmd, "REFUSE") != 0) {
+        while (strcmp(chg_cmd, "ACCEPT") != 0 && strcmp(chg_cmd, "REFUSE") != 0) {
             cout << "Wrong command inserted, please retry!" << endl;
             cin >> chg_cmd;
         }
 
-        if (strcmp((char*)chg_cmd, "ACCEPT") == 0) {
+        //reset timer 
+        time.tv_sec = 0;  
+        time.tv_usec = 0;
+        setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
+
+        if (strcmp(chg_cmd, "ACCEPT") == 0) {
             // we have accepted the challenge request
             send_challengeAccepted(socket, buffer, OPCODE_CHALLENGE_ACCEPTED, ++rcv_seq_numb, sv_addr_challenge, addr_size, challenge_id);
 
@@ -167,7 +194,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
             received = recvfrom(socket, buffer, SIZE_MESSAGE_CHALLENGE_START, 0, (struct sockaddr*)sv_addr_challenge, &size);
 
-            // i have to distinguish if the received msg is challenge_start or a challenge_unavailable
+            // i have to distinguish if the received msg is challenge_start or a challenge_unavailable or also a malformed msg
             memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
 
             if(rcv_opcode == OPCODE_MALFORMED_MEX){
@@ -178,6 +205,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
             }
 
             if (rcv_opcode == OPCODE_CHALLENGE_UNAVAILABLE) {
+
                 check = check_challenge_Unavailable(socket, buffer, received, ++rcv_seq_numb);
                 if (!check) {
                     send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++seq_numb, sv_addr_priv, addr_size);
@@ -206,6 +234,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
         // we have refused the challenge --> we send a challenge refused msg
         if (strcmp((char*)chg_cmd, "REFUSE") == 0) {
+
             send_challengeRefused(socket, buffer, ++rcv_seq_numb, challenge_id, sv_addr_challenge, addr_size);
 
             memset(buffer, 0, BUF_SIZE);
@@ -254,7 +283,60 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     }
 }
 
-void challenge() {}
+void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,int addr_size,char* user,char* available_users,int avail_len) {
+
+    unsigned char buffer[BUF_SIZE];
+    int size, received, ret;
+    uint8_t seq_numb;
+    uint8_t rcv_seq_numb;
+    int pos = 0;
+    struct timeval time;
+    char challenged_user[255];
+    unsigned char adv_ip[SIZE_IP_ADDRESS];
+    unsigned char adv_pubkey[2049];
+    int challenge_id;
+    bool check;
+    uint8_t user_len=strlen(user)+1;
+
+    seq_numb=11; //scelto a caso
+
+    //the first thing that the client does is to notify the server that he wants to send challenge requests
+    size=addr_size;
+    send_UpdateStatus(socket,buffer,user,user_len,OPCODE_UPDATE_STATUS,seq_numb,STATUS_CHALLENGING,sv_addr_priv,size);
+
+    // now i wait the ack from the server
+    receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);
+
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    if (!check) {
+        // received an altered msg-->send malformed msg
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++seq_numb, sv_addr_priv, addr_size);
+        close(socket);
+        exit(-1);
+    }
+
+    //now the user has to insert as input the name of the user who wants to challenge
+    cout<<"Please insert the name of the challenged user ! \n";
+    cin>>challenged_user;
+
+    //now i send the challenge request to the inserted user
+    send_challengeRequest(socket,sv_addr_priv,addr_size,buffer,user,challenged_user,++seq_numb,challenge_id);
+
+    //wait for ACK
+    receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);
+
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    if (!check) {
+        // received an altered msg-->send malformed msg
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++seq_numb, sv_addr_priv, addr_size);
+        close(socket);
+        exit(-1);
+    }
+
+    // now i can receive several possible responses: CHALLENGE_START,CHALLENGE_REFUSED,CHALLENGE_UNAVAILABLE
+    // or if the setted timer expires i have to send a CHALLENGE_TIMER_EXPIRED_REQUEST
+
+}
 
 int main() {
     char cmd[10];
@@ -263,6 +345,8 @@ int main() {
     uint16_t port;
     struct sockaddr_in sv_addr_main;
     struct sockaddr_in sv_addr_priv;
+    char* available_users;
+    int avail_len;
 
     memset(&sv_addr_main, 0, sizeof(sv_addr_main));
     sock = socket(AF_INET, SOCK_DGRAM, 0);

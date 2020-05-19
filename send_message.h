@@ -10,6 +10,8 @@
 #include <unistd.h>
 using namespace std;
 
+void send_challengeRequest(int socket, struct sockaddr_in* sv_addr, int addr_size, unsigned char* buffer, char* challenger, char* challenged,
+                           uint8_t seq_numb, int challenge_id);
 void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, int challenge_id, sockaddr_in* sv_addr_challenge, int addr_size);
 void send_challengeAccepted(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr_challenging, int addr_size,
                             int challenge_id);
