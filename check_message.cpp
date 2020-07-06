@@ -15,7 +15,7 @@ using namespace std;
 
 
 
-bool check_login(unsigned char* message, unsigned int messageLength,uint8_t& seqNum,char* username) {
+bool check_login(unsigned char* message, unsigned int messageLength,uint8_t* seqNum,char* username) {
     uint8_t actualOpcode;
     uint8_t actualLength;
     uint8_t seq;
@@ -24,7 +24,7 @@ bool check_login(unsigned char* message, unsigned int messageLength,uint8_t& seq
     if (actualOpcode != OPCODE_LOGIN) 
 		return false;
 	memcpy(&seq, message + SIZE_OPCODE, SIZE_SEQNUMBER);
-    seqNum=ntohs(seq);	
+    *seqNum=ntohs(seq);	
     memcpy(&actualLength, message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
     if (actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + 1))  // L'uno in più è per il carattere di terminazione della stringa
         return false;

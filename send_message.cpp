@@ -16,6 +16,25 @@ using namespace std;
 
 #define BUF_SIZE 512
 
+
+void send_loginOK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size){
+    int pos = 0;
+    int ret;
+    uint8_t seqNumMex = htons(seq_numb);
+    uint8_t opcodeMex = htons(op_code);
+    memset(buffer, 0, BUF_SIZE);
+    memcpy(buffer, &opcodeMex, SIZE_OPCODE);
+    pos += SIZE_OPCODE;
+    memcpy(buffer + pos, &seqNumMex, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+
+    ret = sendto(socket, buffer, SIZE_MESSAGE_LOGIN_OK, 0, (struct sockaddr*)sv_addr, addr_size);
+    if (ret < (int)SIZE_MESSAGE_LOGIN_OK) {
+        perror("There was an error during the sending of the loginOK message \n");
+        exit(-1);
+    }	
+}
+
 void send_challengeRequest(int socket, struct sockaddr_in* sv_addr, int addr_size, unsigned char* buffer, char* challenger, char* challenged,
                            uint8_t seq_numb, int challenge_id) {
     uint8_t op_code = htons(OPCODE_CHALLENGE_REQUEST);
@@ -117,7 +136,7 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
     int pos = 0;
     int ret;
     uint8_t seqNumMex = htons(seq_numb);
-    uint8_t opcodeMex = htons(OPCODE_ACK);
+    uint8_t opcodeMex = htons(op_code);
     memset(buffer, 0, BUF_SIZE);
     memcpy(buffer, &opcodeMex, SIZE_OPCODE);
     pos += SIZE_OPCODE;
@@ -131,8 +150,7 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
     }
 }
 
-void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_t user_size, uint8_t op_code, uint8_t seq_numb, uint8_t status_code,
-                       sockaddr_in* sv_addr, int addr_size) {
+void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_t user_size, uint8_t op_code, uint8_t seq_numb, uint8_t status_code,sockaddr_in* sv_addr, int addr_size) {
     int pos = 0;
     uint8_t seqNumMex = htons(seq_numb);
     uint8_t opcodeMex = htons(OPCODE_UPDATE_STATUS);
@@ -156,3 +174,5 @@ void send_UpdateStatus(int socket, unsigned char* buffer, char* username, uint8_
         exit(-1);
     }
 }
+
+void send_AvailableUserListChunk(int socket,

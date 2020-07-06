@@ -11,9 +11,13 @@
 #include <pthread.h>
 #include <math.h>
 #include <openssl/evp.h>
-#include "protocol_constant.h"
-#include "check_message.h"
-#include "send_message.h"
+#include <openssl/rand.h>
+
+#include "../protocol_constant.h"
+#include "../check_message.h"
+#include "../send_message.h"
+
+#include "users_datastructure.h"
 
 using namespace std;
 
@@ -24,6 +28,8 @@ using namespace std;
 pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
 vector<int> indexesAvailableTID;
+pthread_mutex_t lockSequenceNumber = PTHREAD_MUTEX_INITIALIZER;
+uint8_t lastSequenceNumber;
 
 struct request{
 	int threadIndex;
@@ -48,9 +54,6 @@ void* serveClient(void *arg){
 	int threadIndex = ((struct request*)arg)->threadIndex;
 	socklen_t clientAddressLen = ((struct request*)arg)->clientAddressLen;
 	struct sockaddr_in clientAddress = ((struct request*)arg)->clientAddress;
-	pthread_mutex_lock(&lockIndexesAvailableTID);
-		indexesAvailableTID.push_back(threadIndex);	
-	pthread_mutex_unlock(&lockIndexesAvailableTID);
 	printf("Messaggio ricevuto:\n");
  	BIO_dump_fp (stdout, (const char *)loginMessage, sizeMessageRecived);
 	uint8_t seqNum;
@@ -70,12 +73,45 @@ void* serveClient(void *arg){
 			printf("Il messaggio di login ricevuto e' corretto.\n");
 			printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
 			printf("USERNAME. RICEVUTO: %s.\n",username);
-			send_ACK(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress));
+			send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
+			if(addNewUserDataStructure(username,clientAddress)){
+				pthread_mutex_lock(&lockSequenceNumber);
+					seqNum = lastSequenceNumber;
+					lastSequenceNumber = (lastSequenceNumber + 1) % 256;
+				pthread_mutex_unlock(&lockSequenceNumber);
+				send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
+
+				//Mi metto in attesa dell'ack
+				memset(sendBuffer, 0, BUF_SIZE);
+				sizeMessageRecived = recvfrom(threadSocket, sendBuffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)clientAddress, &clientAddressLen);
+
+				if(sizeMessageRecived < SIZE_MESSAGE_ACK){
+					perror("There was an error during the reception of the ACK ! \n");
+					memset(sendBuffer, 0, BUF_SIZE);
+					send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
+					close(threadSocket);
+				}else{
+					if(check_ack(threadSocket,sendBuffer,sizeMessageRecived,OPCODE_ACK,seqNum)){
+						//Invio della lista di utenti disponibili
+						vector<string> availableUserList = availableUserListUserDataStructure();
+						//for(int i=0;availableUserList.size())
+					}else{
+						memset(sendBuffer, 0, BUF_SIZE);
+						send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
+						close(threadSocket);
+					}
+				}
+			}else{
+				//Invio del messaggio login NO
+			}
 		}else{
 			printf("Il messaggio di login ricevuto e' malformato.\n");
-			send_malformedMsg(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress));
+			send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
 		}		
 	}
+	pthread_mutex_lock(&lockIndexesAvailableTID);
+		indexesAvailableTID.push_back(threadIndex);	
+	pthread_mutex_unlock(&lockIndexesAvailableTID);
     sem_post(&indexesSem);	
 	printf("Esco dal thread serveClient.\n");
 	pthread_exit(NULL);
@@ -84,6 +120,11 @@ void* serveClient(void *arg){
 int main(){
 	indexesAvailableTID = intializeIndexesAvailableTID();
 	sem_init(&indexesSem,0,MAX_REQUEST);
+
+	//Inizializzazione in maniera casuale del sequence number per i messaggi inviati dal server	utilizzando OpenSSL
+	RAND_poll();
+	RAND_bytes(&lastSequenceNumber,1);
+
 	int serverSocket;
 	struct sockaddr_in serverAddress;
 	memset(&serverAddress,0,sizeof(serverAddress));
