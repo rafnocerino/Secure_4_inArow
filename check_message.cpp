@@ -15,16 +15,21 @@ using namespace std;
 
 
 
-bool check_login(unsigned char* message, unsigned int messageLength,uint8_t* seqNum,char* username) {
+bool check_login(int socket,unsigned char* message, unsigned int messageLength,uint8_t& seqNum,char* username) {
     uint8_t actualOpcode;
     uint8_t actualLength;
     uint8_t seq;
     memcpy(&actualOpcode, message, SIZE_OPCODE);
-    actualOpcode=ntohs(actualOpcode);
+    
+    if (actualOpcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        exit(-1);
+    }
+
     if (actualOpcode != OPCODE_LOGIN) 
 		return false;
 	memcpy(&seq, message + SIZE_OPCODE, SIZE_SEQNUMBER);
-    *seqNum=ntohs(seq);	
+    seqNum=seq;	
     memcpy(&actualLength, message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
     if (actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + 1))  // L'uno in più è per il carattere di terminazione della stringa
         return false;
@@ -39,11 +44,11 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
-    rcv_opcode=ntohs(rcv_opcode);
+   
 
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
-    rcv_seq_numb=ntohs(rcv_seq_numb);
+   
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         // this means that the msg that i sent was modified during the forwarding
@@ -51,7 +56,7 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
         exit(-1);
     }
 
-    if ((rcv_opcode != exp_opcode) || (rcv_seq_numb != exp_seq_numb)) {
+    if ((rcv_opcode != exp_opcode) || (rcv_seq_numb != exp_seq_numb) || (messageLength != SIZE_MESSAGE_ACK)) {
         return false;
     }
 
@@ -63,27 +68,30 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     uint8_t rcv_opcode;
     int pos = 0;
     uint8_t data_len;
-    uint8_t seq, id;
+    uint8_t seq;
+    int id;
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
-    rcv_opcode=ntohs(rcv_opcode);
+    
 
     memcpy(&seq, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
-    rcv_seq_numb = ntohs(seq);
+    rcv_seq_numb = seq;
 
-    memcpy(&id, buffer + pos, sizeof(id));
-    pos += sizeof(id);
-    challenge_id = ntohs(id);
+    memcpy(&id, buffer + pos, SIZE_CHALLENGE_NUMBER);
+    pos += SIZE_CHALLENGE_NUMBER;
+    challenge_id = id;
 
     memcpy(&data_len, buffer + pos, SIZE_LEN);
     pos += sizeof(data_len);
 
-    strcpy((char*)challenging_user, (char*)buffer + pos);
-    pos += strlen((char*)challenging_user) + 1;
+    memcpy(challenging_user,buffer+pos,data_len);
+    pos+=data_len;
+
 
     strtok((char*)challenging_user, ";");
+    
     int flush_len = strlen((char*)challenging_user) + 1;
     memset(challenging_user + flush_len, 0, 255 - flush_len);
 
@@ -105,35 +113,109 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     return true;
 }
 
-bool check_challenge_Unavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb) {
+bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb) {
     uint8_t rcv_opcode;
     uint8_t rcv_seq_numb;
     int pos = 0;
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
-    rcv_opcode=ntohs(rcv_opcode);
+   
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
-    rcv_seq_numb = ntohs(rcv_seq_numb);
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         close(socket);
         exit(-1);
     }
-    if ((rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE) || (exp_seq_numb != rcv_seq_numb)) {
+    if ((rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE) || (exp_seq_numb != rcv_seq_numb) || messageLength != SIZE_MESSAGE_CHALLENGE_UNAVAILABLE) {
         return false;
     }
 
     return true;
 }
 
+bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,uint8_t exp_seq_numb){
+    uint8_t rcv_opcode;
+    uint8_t rcv_seq_numb;
+    int id;
+    int pos = 0;
+
+    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+    pos += SIZE_OPCODE;
+    
+    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+   
+
+    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        exit(-1);
+    }
+
+     if ((rcv_opcode != OPCODE_CHALLENGE_REFUSED) || (exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_REFUSED)) {
+        return false;
+    }
+
+    return true;
+
+}
+
+bool check_challengeTimerExpired(int socket,unsigned char* buffer,int messageLenght,uint8_t exp_seq_numb){
+    uint8_t rcv_opcode;
+    uint8_t rcv_seq_numb;
+    int pos = 0;
+
+    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+    pos += SIZE_OPCODE;
+    
+    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+    
+
+     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        exit(-1);
+    }
+
+    if ((rcv_opcode != OPCODE_CHALLENGE_TIMER_EXPIRED) || (exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED)) {
+        return false;
+    }
+
+    return true;
+
+}
+
+
 bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,unsigned char* ip,unsigned char* adv_pubkey){
 
     uint8_t rcv_opcode;
-    uint8_t seq;
+    uint8_t rcv_seq_numb;
+    uint8_t len;
+    int pos=0;
 
-    //da terminare
+    memcpy(&rcv_opcode,buffer,SIZE_OPCODE);
+    pos+=SIZE_OPCODE;
+    memcpy(&rcv_seq_numb,buffer+pos,SIZE_SEQNUMBER);
+    pos+=SIZE_SEQNUMBER;
+    memcpy(adv_pubkey,buffer+pos,SIZE_PUBLIC_KEY);
+    pos+=SIZE_PUBLIC_KEY;
+    memcpy(&len,buffer+pos,SIZE_LEN);
+    pos+=SIZE_LEN;
+    memcpy(ip,buffer+pos,len);
+    pos+=len;
 
+
+    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        exit(-1);
+    }
+
+    if( (rcv_opcode != OPCODE_CHALLENGE_START) || (rcv_seq_numb != exp_seq_numb) || (messageLength != pos)){
+        return false;
+    }
+    
+
+    return true;
 }
 
