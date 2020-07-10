@@ -20,3 +20,7 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
 void send_UpdateStatus(int socket, unsigned char* buffer,const char* username, uint8_t user_size, uint8_t op_code, uint8_t seq_numb, uint8_t status_code,
                        sockaddr_in* sv_addr, int addr_size);
 void send_loginOK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size);
+void send_challengeTimerExpired(int socket,unsigned char* buffer,uint8_t seqNum,sockaddr_in* client_addr,int addr_size);
+void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size);
+void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum, sockaddr_in* clientAddress, int clientAddressLen);
+void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size);

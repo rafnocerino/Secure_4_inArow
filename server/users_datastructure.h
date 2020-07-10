@@ -11,3 +11,4 @@ int getStatusUserDataStructure(string username);
 bool setStatusUserDataStructure(int newStatus,string username);
 bool getIPUserDataStructure(string username,struct sockaddr_in* requestedIP);
 vector<string> availableUserListUserDataStructure();
+void printUserDataStructure();

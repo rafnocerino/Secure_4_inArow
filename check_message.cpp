@@ -15,7 +15,7 @@ using namespace std;
 
 
 
-bool check_login(int socket,unsigned char* message, unsigned int messageLength,uint8_t& seqNum,char* username) {
+bool check_login(int socket,unsigned char* message, int messageLength,uint8_t& seqNum,char* username) {
     uint8_t actualOpcode;
     uint8_t actualLength;
     uint8_t seq;
@@ -63,8 +63,8 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
     return true;
 }
 
-bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,
-                            unsigned char* challenging_user, int& challenge_id, uint8_t& rcv_seq_numb) {
+
+bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,char* challenging_user, int& challenge_id, uint8_t& rcv_seq_numb){
     uint8_t rcv_opcode;
     int pos = 0;
     uint8_t data_len;
@@ -135,10 +135,9 @@ bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLe
     return true;
 }
 
-bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,uint8_t exp_seq_numb){
+bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,uint8_t exp_seq_numb,int *challengeId){
     uint8_t rcv_opcode;
     uint8_t rcv_seq_numb;
-    int id;
     int pos = 0;
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
@@ -147,6 +146,8 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
    
+	memcpy(challengeId,buffer + pos,SIZE_CHALLENGE_NUMBER);
+	pos += SIZE_CHALLENGE_NUMBER;
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         close(socket);
@@ -158,7 +159,6 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
     }
 
     return true;
-
 }
 
 bool check_challengeTimerExpired(int socket,unsigned char* buffer,int messageLenght,uint8_t exp_seq_numb){
@@ -219,3 +219,89 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
     return true;
 }
 
+bool check_updateStatus(unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t* statusCode,char* username){
+	
+	uint8_t opcodeMex;
+	uint8_t seqNumMex;
+	uint8_t statusCodeMex;
+	uint8_t lenMex;
+	
+	int pos = 0;	
+	
+	memcpy(&opcodeMex,message,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+
+	//Controllo della lunghezza del messaggio
+	if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS)
+		return false;
+
+	//Controllo del opcode	
+	if(opcodeMex != OPCODE_UPDATE_STATUS)
+		return false;
+
+	memcpy(&seqNumMex,message + pos,SIZE_SEQNUMBER);
+	pos += SIZE_SEQNUMBER;
+	if(seqNumMex != expectedSeqNum){
+		return false;
+	}
+	
+	memcpy(&statusCodeMex,message + pos,SIZE_STATUS_CODE);
+	pos += SIZE_STATUS_CODE;
+	*statusCode = statusCodeMex;
+	//Controllo dello status code
+	if(statusCodeMex != STATUS_CHALLENGING && statusCodeMex != STATUS_IDLE && statusCodeMex != STATUS_CHALLENGING)
+		return false;
+	
+	memcpy(&lenMex,message + pos,SIZE_LEN);
+	pos += SIZE_LEN;
+	if(messageLength != SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN + lenMex)
+		return false;
+
+	memcpy(username,message + pos,lenMex);
+	pos += lenMex;
+
+	return true;
+}
+
+bool check_exit(unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username){
+	uint8_t actualOpcode;
+	uint8_t actualSeqNum;
+	uint8_t actualLength;
+
+	memcpy(&actualOpcode,message,SIZE_OPCODE);
+	if(actualOpcode != OPCODE_EXIT){
+		return false;
+	}
+
+	memcpy(&actualSeqNum,message + SIZE_OPCODE, SIZE_SEQNUMBER);
+	if(actualSeqNum != expectedSeqNum){
+		return false;
+	}
+	
+	memcpy(&actualLength,message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
+	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + 1)){  // L'uno in più è per il carattere di terminazione della stringa
+		return false;
+	}
+
+	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
+	return true;
+}
+
+bool check_challengeAccepted(unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber){
+	uint8_t actualOpcode;
+	uint8_t seqNumMex;
+
+	memcpy(&actualOpcode,buffer,SIZE_OPCODE);
+	if(actualOpcode != OPCODE_CHALLENGE_ACCEPTED){
+		return false;
+	}
+	
+	memcpy(&seqNumMex,buffer + SIZE_OPCODE,SIZE_SEQNUMBER);
+	if(seqNumMex != expectedSeqNum){
+		return false;
+	}
+
+	memcpy(challengeNumber, buffer + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_CHALLENGE_NUMBER);
+
+	return true;
+}

@@ -1,4 +1,5 @@
 #include "users_datastructure.h"
+#include "../protocol_constant.h"
 
 struct userDataStructure{
 	//	username
@@ -105,7 +106,7 @@ bool getIPUserDataStructure(string username,struct sockaddr_in* requestedIP){
 vector<string> availableUserListUserDataStructure(){
 	vector<string> availableUserList;
 	for(int i = 0; i < usersDataStructureSize ; i++){
-		if(usersDataStructure.at(i).status == 2){
+		if(usersDataStructure.at(i).status == STATUS_WAITING){
 			availableUserList.push_back(usersDataStructure.at(i).username);
 		}	
 	}

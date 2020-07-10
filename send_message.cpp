@@ -183,3 +183,93 @@ void send_UpdateStatus(int socket, unsigned char* buffer,const char* username, u
         exit(-1);
     }
 }
+
+void send_challengeTimerExpired(int socket,unsigned char* buffer,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
+	uint8_t opcode = OPCODE_CHALLENGE_TIMER_EXPIRED;
+	uint8_t seqNumMex = seqNum;	
+	
+	memset(buffer,0,BUF_SIZE);
+	memcpy(buffer,&opcode,SIZE_OPCODE);
+	memcpy(buffer + SIZE_OPCODE,&seqNumMex,SIZE_SEQNUMBER);
+	
+	int ret = sendto(socket,buffer,SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED,0,(struct sockaddr*)client_addr,addr_size);
+
+	if(ret < SIZE_OPCODE + SIZE_SEQNUMBER){
+		perror("There was an error during the sending of the ACK \n");
+	}
+}
+
+void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size){
+	int pos = 0;
+    uint8_t seqNumMex = seq_numb;
+    uint8_t opcodeMex = OPCODE_AVAILABLE_USER_LIST;
+    uint8_t lastFlagMex = lastFlag == true ? 1 : 0;
+    uint8_t lenMex = len;
+	memset(buffer, 0, BUF_SIZE);
+	memcpy(buffer, &opcodeMex, SIZE_OPCODE);
+    pos += SIZE_OPCODE;
+	memcpy(buffer + pos, &seqNumMex, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+	memcpy(buffer + pos, &lenMex, SIZE_LEN);
+    pos += SIZE_LEN;
+	memcpy(buffer + pos, &lastFlagMex, SIZE_LAST_FLAG);
+    pos += SIZE_LAST_FLAG;	
+    memcpy(buffer + pos, chunk, strlen(chunk));
+    pos += strlen(chunk);
+
+	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)client_addr, addr_size);
+	if(ret < pos){
+		perror("There was an error during the sending of the ACK \n");
+	}
+}
+
+void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum, sockaddr_in* clientAddress, int clientAddressLen){
+	int pos = 0;
+	int ret;
+
+	uint8_t opcodeMex = OPCODE_CHALLENGE_UNAVAILABLE;
+	uint8_t seqNumMex = seqNum;
+	
+	memset(buffer,0,BUF_SIZE);
+
+	memcpy(buffer + pos,&opcodeMex,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+
+	memcpy(buffer + pos,&seqNumMex,SIZE_SEQNUMBER);
+	pos += SIZE_SEQNUMBER;
+	
+	ret = sendto(socket,buffer,SIZE_MESSAGE_CHALLENGE_UNAVAILABLE,0,(struct sockaddr*)clientAddress,clientAddressLen);
+	if(ret < (int)SIZE_MESSAGE_CHALLENGE_UNAVAILABLE){
+		perror("There was an error during the sending of the sending of the challenge unavailable message. \n");
+		exit(-1);
+	}	
+}
+
+void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
+	uint8_t opcode = OPCODE_CHALLENGE_START;
+	uint8_t seqNumMex = seqNum;
+	uint8_t lenMex = strlen(ip);
+	int pos = 0;
+	memset(buffer,0,BUF_SIZE);
+	
+	memcpy(buffer + pos,&opcode,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+	
+	memcpy(buffer + pos,&seqNumMex,SIZE_SEQNUMBER);
+	pos += SIZE_SEQNUMBER;
+
+	memcpy(buffer + pos,&lenMex,SIZE_LEN);
+	pos += SIZE_LEN;
+	
+	memcpy(buffer + pos,public_key,SIZE_PUBLIC_KEY);
+	pos += SIZE_PUBLIC_KEY;
+
+	memcpy(buffer + pos,ip,lenMex);
+	pos += lenMex;
+
+	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)client_addr,addr_size);
+
+	if(ret < pos){
+		perror("Errore: impossibile inviare il messaggio di challenge start.\n");
+	}
+}

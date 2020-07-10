@@ -30,6 +30,7 @@ const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
 #define STATUS_IDLE 0
 #define STATUS_CHALLENGING 1
 #define STATUS_WAITING 2
+#define STATUS_IN_CHALLENGE 3
 /*----------------------------------------------------------------------------------------------------------------------*/
 
 /*--------------------------------------------OPCODE--------------------------------------------------------------------*/
