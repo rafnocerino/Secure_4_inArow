@@ -305,3 +305,41 @@ bool check_challengeAccepted(unsigned char* buffer,int messageLength,uint8_t exp
 
 	return true;
 }
+
+bool check_available_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag){
+
+    uint8_t opcodeMex;
+	uint8_t seqNumMex;
+	uint8_t lenMex;
+    uint8_t fl;
+
+    int pos=0;
+
+    memcpy(&opcodeMex,buffer,SIZE_OPCODE);
+    pos+=SIZE_OPCODE;
+    memcpy(&seqNumMex,buffer+pos,SIZE_SEQNUMBER);
+    pos+=SIZE_SEQNUMBER;
+    memcpy(&lenMex,buffer+pos,SIZE_LEN);
+    pos+=SIZE_LEN;
+    list_len=lenMex;
+    memcpy(&fl,buffer+pos,SIZE_LAST_FLAG);
+    pos+=SIZE_LAST_FLAG;
+    flag=fl;
+    memcpy(available_users,buffer+pos,lenMex);
+    pos+=lenMex;
+
+    if (opcodeMex == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        exit(-1);
+    }
+
+    if( (opcodeMex != OPCODE_AVAILABLE_USER_LIST) || (seqNumMex != exp_seq_numb) || (messageLength != pos)){
+        return false;
+    }
+    
+
+    return true;
+
+
+
+}

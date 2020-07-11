@@ -16,3 +16,4 @@ bool check_login(int socket,unsigned char* message, int messageLength,uint8_t& s
 bool check_updateStatus(unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t* statusCode,char* username); 
 bool check_exit(unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username);
 bool check_challengeAccepted(unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber);
+bool check_available_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag);
