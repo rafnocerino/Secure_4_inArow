@@ -24,3 +24,4 @@ void send_challengeTimerExpired(int socket,unsigned char* buffer,uint8_t seqNum,
 void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size);
 void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum, sockaddr_in* clientAddress, int clientAddressLen);
 void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size);
+void send_exit(int socket, unsigned char* buffer,char* username, uint8_t seqNum,sockaddr_in* sv_addr_priv,int addr_size);

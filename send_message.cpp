@@ -277,3 +277,28 @@ void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_
 		perror("Errore: impossibile inviare il messaggio di challenge start.\n");
 	}
 }
+
+void send_exit(int socket, unsigned char* buffer,char* username, uint8_t seqNum,sockaddr_in* sv_addr_priv,int addr_size){
+
+    uint8_t opcode = OPCODE_EXIT;
+	uint8_t seqNumMex = seqNum;
+	uint8_t lenMex = strlen(username) + 1;
+	int pos = 0;
+	memset(buffer,0,BUF_SIZE);
+
+    memcpy(buffer,&opcode,SIZE_OPCODE);
+    pos+=SIZE_OPCODE;
+    memcpy(buffer+pos,&seqNumMex,SIZE_SEQNUMBER);
+    pos+=SIZE_SEQNUMBER;
+    memcpy(buffer+pos,&lenMex,SIZE_LEN);
+    pos+=SIZE_LEN;
+    memcpy(buffer+pos,username,lenMex);
+    pos+=lenMex;
+
+    int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)sv_addr_priv,addr_size);
+
+	if(ret < pos){
+		perror("Errore: impossibile inviare il messaggio di exit.\n");
+	}
+
+}

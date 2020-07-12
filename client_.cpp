@@ -75,6 +75,30 @@ void login(int sock,struct sockaddr_in& serverAddress,const char* user){
  	BIO_dump_fp (stdout, (const char *)buf, received);
 }
 
+void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user){
+    bool check;
+    int received;
+    unsigned char buffer[BUF_SIZE];
+
+    send_exit(socket,buffer,user,++seq_numb,sv_addr_priv,addr_size);
+
+    receive_ACK(socket,buffer,addr_size,sv_addr_priv,received); 
+	printf("ACK ricevuto!\n");   
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    if (!check) {
+        cout<<"ACK received after exit msg is altered, the app will be closed!"<<endl;
+        // received an altered msg-->send malformed msg
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+        close(socket);
+        exit(-1);
+    }
+
+    close(socket);
+    exit(-1);
+
+
+}
+
 void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, const char* user) {
     unsigned char buffer[BUF_SIZE];
     int received, ret;
@@ -601,11 +625,13 @@ int main() {
             }*/
             //rimuovere stringa user hard coded
             challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len);
-
+            cout<<"The list of the available users is: "<<endl;
+            cout<<available_users<<endl;
             continue;
         }
 
         if (strcmp(cmd, "!exit") == 0) {
+            exit(sock,&sv_addr_priv,sizeof(sv_addr_priv),user);
             break;
         }
 
