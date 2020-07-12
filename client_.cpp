@@ -480,8 +480,10 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
             received = recvfrom(socket, buffer, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)sv_addr_challenge, &size);
             
+			printf("Ricevuto chunk della available user list.\n");
+
             char list[255];
-            check = check_available_userList(socket,buffer,len_list,received,++rcv_seq_numb,list,flag);
+            check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag);
             
             if (!check) {
             cout<<"The user available list msg is altered, the app will be closed !"<<endl;
@@ -490,7 +492,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
             exit(-1);
             }
 
-            send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);         
+            send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_challenge, addr_size);         
 
             total_len+=len_list;
             temp=(char*)malloc(total_len);
@@ -507,10 +509,11 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
             }
 
         }
-
-        available_users=result;
+		printf("Available User List: %s\n",result);
+        /*BIO_dump_fp(stdout,(const char*)result,result_size);	
         avail_len=result_size;
-
+		available_users=(char*) malloc(avail_len);
+		memcpy(available_users,result,result_size);*/
     }
     
     if (rcv_opcode == OPCODE_CHALLENGE_START) {
@@ -626,7 +629,9 @@ int main() {
             //rimuovere stringa user hard coded
             challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len);
             cout<<"The list of the available users is: "<<endl;
-            cout<<available_users<<endl;
+            //cout<<available_users<<endl;
+					
+			//printf("")
             continue;
         }
 

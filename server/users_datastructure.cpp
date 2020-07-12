@@ -11,7 +11,6 @@ struct userDataStructure{
 };
 
 pthread_mutex_t lockUsersDataStructure = PTHREAD_MUTEX_INITIALIZER;
-int usersDataStructureSize = 0;
 //	vettore con le entry che descrivono gli utenti sarà 
 vector <userDataStructure> usersDataStructure;
 
@@ -25,7 +24,7 @@ bool addNewUserDataStructure(string username,struct sockaddr_in IPaddress){
 	newUser->IPaddress = newIPaddress; 
 	int found = 0;
 	pthread_mutex_lock(&lockUsersDataStructure);
-		for(int i = 0 ; i < usersDataStructureSize && found==0; i++){
+		for(int i = 0 ; i < usersDataStructure.size() && found==0; i++){
 			if(usersDataStructure.at(i).username.compare(username) >= 0){
 				if(usersDataStructure.at(i).username.compare(username) == 0){
 					found = -1;
@@ -38,8 +37,7 @@ bool addNewUserDataStructure(string username,struct sockaddr_in IPaddress){
 		//Se non e' stato ancora trovato vuol dire che va messo in ultima posizione
 		if(found == 0){
 			usersDataStructure.push_back(*newUser);
-		} 		
-		usersDataStructureSize += 1;
+		} 	
 	pthread_mutex_unlock(&lockUsersDataStructure);
 	printUserDataStructure();	
 	return found == -1 ? false : true;
@@ -48,7 +46,7 @@ bool addNewUserDataStructure(string username,struct sockaddr_in IPaddress){
 int bSearchUserDataStructureFromUsername(string username){
 	int currentIndex;
 	int startIndex = 0; 	
-	int lastIndex = usersDataStructureSize - 1; 	
+	int lastIndex = usersDataStructure.size() - 1; 	
 	while(startIndex <= lastIndex){
 		currentIndex = (startIndex + lastIndex)/2;
 		if(usersDataStructure.at(currentIndex).username.compare(username) == 0){
@@ -70,7 +68,7 @@ bool removeUserDataStructure(string username){
 		return false;
 	}
 	pthread_mutex_lock(&lockUsersDataStructure);
-		usersDataStructure.erase(usersDataStructure.begin() + currentIndex);		
+		usersDataStructure.erase(usersDataStructure.begin() + currentIndex);	
 	pthread_mutex_unlock(&lockUsersDataStructure);
 	return true;
 }
@@ -105,7 +103,7 @@ bool getIPUserDataStructure(string username,struct sockaddr_in* requestedIP){
 
 vector<string> availableUserListUserDataStructure(){
 	vector<string> availableUserList;
-	for(int i = 0; i < usersDataStructureSize ; i++){
+	for(int i = 0; i < usersDataStructure.size() ; i++){
 		if(usersDataStructure.at(i).status == STATUS_WAITING){
 			availableUserList.push_back(usersDataStructure.at(i).username);
 		}	
@@ -114,7 +112,7 @@ vector<string> availableUserListUserDataStructure(){
 } 
 
 void printUserDataStructure(){
-	for(int i = 0; i < usersDataStructureSize ; i++){
+	for(int i = 0; i < usersDataStructure.size() ; i++){
 		char buffer[INET_ADDRSTRLEN];
 		inet_ntop( AF_INET, &usersDataStructure.at(i).IPaddress.sin_addr, buffer, sizeof( buffer ));
 		cout<<usersDataStructure.at(i).username<<","<<usersDataStructure.at(i).status<<","<<buffer<<"\n";	

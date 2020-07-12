@@ -11,6 +11,8 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
+#include <openssl/evp.h>
+
 #include "protocol_constant.h"
 using namespace std;
 
@@ -52,6 +54,10 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
+
+	if(rcv_opcode != exp_opcode){
+		return false;
+	}
    
 
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
@@ -70,7 +76,7 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
         pthread_exit(NULL);
     }
 
-    if ((rcv_opcode != exp_opcode) || (rcv_seq_numb != exp_seq_numb) || (messageLength != SIZE_MESSAGE_ACK)) {
+    if ( (rcv_seq_numb != exp_seq_numb) || (messageLength != SIZE_MESSAGE_ACK)) {
         printf("Figli di troia.\n");
 		return false;
     }
@@ -89,6 +95,15 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     
+	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        // this means that the msg that i sent was modified during the forwarding
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+	if (rcv_opcode != exp_opcode) {
+        return false;
+    }
 
     memcpy(&seq, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
@@ -117,16 +132,6 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
 	}	
 	
     memset(challenging_user + flush_len, 0, 255 - flush_len);
-	
-    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
-        // this means that the msg that i sent was modified during the forwarding
-        close(socket);
-        pthread_exit(NULL);
-    }
-
-    if (rcv_opcode != exp_opcode) {
-        return false;
-    }
 
     //prestare attenzione alla formula per il controllo della len
     if (data_len != messageLength - SIZE_OPCODE - SIZE_SEQNUMBER - SIZE_CHALLENGE_NUMBER - SIZE_LEN ) {
@@ -144,14 +149,20 @@ bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLe
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
    
-    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
-    pos += SIZE_SEQNUMBER;
-
-    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+	if(rcv_opcode == OPCODE_MALFORMED_MEX) {
         close(socket);
         pthread_exit(NULL);
     }
-    if ((rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE) || (exp_seq_numb != rcv_seq_numb) || messageLength != SIZE_MESSAGE_CHALLENGE_UNAVAILABLE) {
+
+	if(rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE){
+		return false;
+	}	
+
+    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    pos += SIZE_SEQNUMBER;
+
+
+    if ((exp_seq_numb != rcv_seq_numb) || messageLength != SIZE_MESSAGE_CHALLENGE_UNAVAILABLE) {
         return false;
     }
 
@@ -165,6 +176,15 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
 
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
+
+	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+	if(rcv_opcode != OPCODE_CHALLENGE_REFUSED){
+		return false;
+	}
     
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
@@ -172,12 +192,7 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
 	memcpy(challengeId,buffer + pos,SIZE_CHALLENGE_NUMBER);
 	pos += SIZE_CHALLENGE_NUMBER;
 
-    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
-        close(socket);
-        pthread_exit(NULL);
-    }
-
-     if ((rcv_opcode != OPCODE_CHALLENGE_REFUSED) || (exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_REFUSED)) {
+     if ((exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_REFUSED)) {
         return false;
     }
 
@@ -192,6 +207,15 @@ bool check_challengeTimerExpired(int socket,unsigned char* buffer,int messageLen
     memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     
+	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+	if(rcv_opcode != OPCODE_CHALLENGE_TIMER_EXPIRED){
+		return false;
+	}
+
     memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
     
@@ -199,12 +223,9 @@ bool check_challengeTimerExpired(int socket,unsigned char* buffer,int messageLen
 	printf("EX. S.N. = %u | RC. S.N. = %u.\n",exp_seq_numb,rcv_seq_numb);	
 	printf("Message Lenght = %d.\n",messageLenght);	
 
-    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
-        close(socket);
-        pthread_exit(NULL);
-    }
 
-    if ((rcv_opcode != OPCODE_CHALLENGE_TIMER_EXPIRED) || (exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED)) {
+
+    if ((exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED)) {
         return false;
     }
 
@@ -222,6 +243,16 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 
     memcpy(&rcv_opcode,buffer,SIZE_OPCODE);
     pos+=SIZE_OPCODE;
+
+	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+	if(rcv_opcode != OPCODE_CHALLENGE_START){
+		return false;
+	}
+
     memcpy(&rcv_seq_numb,buffer+pos,SIZE_SEQNUMBER);
     pos+=SIZE_SEQNUMBER;
     memcpy(&len,buffer+pos,SIZE_LEN);
@@ -240,12 +271,9 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 	printf("---------------------------------\n");
 	
 
-    if (rcv_opcode == OPCODE_MALFORMED_MEX) {
-        close(socket);
-        pthread_exit(NULL);
-    }
 
-    if( (rcv_opcode != OPCODE_CHALLENGE_START) || (rcv_seq_numb != exp_seq_numb) || (messageLength != pos)){
+
+    if((rcv_seq_numb != exp_seq_numb) || (messageLength != pos)){
         return false;
     }
     
@@ -253,7 +281,7 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
     return true;
 }
 
-bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t* statusCode,char* username){
+bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t& statusCode,char* username){
 	
 	uint8_t opcodeMex;
 	uint8_t seqNumMex;
@@ -270,18 +298,24 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 		pthread_exit(NULL);
 	}
 
+	//Controllo del opcode	
+	if(opcodeMex != OPCODE_UPDATE_STATUS)
+		return false;
+
 	memcpy(&seqNumMex,message + pos,SIZE_SEQNUMBER);
 	pos += SIZE_SEQNUMBER;
 
 	memcpy(&statusCodeMex,message + pos,SIZE_STATUS_CODE);
 	pos += SIZE_STATUS_CODE;
-	*statusCode = statusCodeMex;
+	statusCode = statusCodeMex;
 		
 	memcpy(&lenMex,message + pos,SIZE_LEN);
 	pos += SIZE_LEN;
 
+
 	memcpy(username,message + pos,lenMex);
 	pos += lenMex;
+
 
 	printf("opcode -> %u\n",opcodeMex);
 	printf("RCV S.N. -> %u | EX. S.N. -> %u \n",seqNumMex,expectedSeqNum);
@@ -294,11 +328,7 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 	if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS)
 		return false;
 
-	//Controllo del opcode	
-	if(opcodeMex != OPCODE_UPDATE_STATUS)
-		return false;
 
-	
 	if(seqNumMex != expectedSeqNum){
 		return false;
 	}
@@ -315,9 +345,9 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 }
 
 bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username){
-	uint8_t actualOpcode;
-	uint8_t actualSeqNum;
-	uint8_t actualLength;
+	uint8_t actualOpcode = 10;
+	uint8_t actualSeqNum = 10;
+	uint8_t actualLength = 10;
 
 	memcpy(&actualOpcode,message,SIZE_OPCODE);
 
@@ -330,17 +360,27 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 		return false;
 	}
 
+
 	memcpy(&actualSeqNum,message + SIZE_OPCODE, SIZE_SEQNUMBER);
+	memcpy(&actualLength,message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
+	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
+
+	printf("-------Check-exit-------------------------\n");
+	printf("S.N. EXP = %u | RCV. = %u \n",expectedSeqNum,actualSeqNum);
+	printf("Message Recived Lenght = %d\n",messageLength);
+	printf("Lenght username = %u\n", actualLength);
+	printf("---------------------------------------\n");
+	
 	if(actualSeqNum != expectedSeqNum){
 		return false;
 	}
 	
-	memcpy(&actualLength,message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
-	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + 1)){  // L'uno in più è per il carattere di terminazione della stringa
+	
+	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN)){  // L'uno in più è per il carattere di terminazione della stringa
 		return false;
 	}
 
-	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
+	
 	return true;
 }
 
@@ -380,6 +420,16 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
 
     memcpy(&opcodeMex,buffer,SIZE_OPCODE);
     pos+=SIZE_OPCODE;
+
+    if (opcodeMex == OPCODE_MALFORMED_MEX) {
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+	if(opcodeMex != OPCODE_AVAILABLE_USER_LIST){
+		return false;
+	}
+
     memcpy(&seqNumMex,buffer+pos,SIZE_SEQNUMBER);
     pos+=SIZE_SEQNUMBER;
     memcpy(&lenMex,buffer+pos,SIZE_LEN);
@@ -391,12 +441,17 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
     memcpy(available_users,buffer+pos,lenMex);
     pos+=lenMex;
 
-    if (opcodeMex == OPCODE_MALFORMED_MEX) {
-        close(socket);
-        pthread_exit(NULL);
-    }
 
-    if( (opcodeMex != OPCODE_AVAILABLE_USER_LIST) || (seqNumMex != exp_seq_numb) || (messageLength != pos)){
+	printf("------User List Check------\n");
+	printf("OPCODE -> %u.\n",opcodeMex);
+	printf("SEQ.NUM EXP = %u; RCV = %u.\n",exp_seq_numb,seqNumMex);
+	printf("LUNGHEZZA CHUNK = %u.\n",lenMex);
+	printf("MESSAGE LENGTH = %d\n",messageLength);
+	printf("POS = %d\n",pos);
+	printf("---------------------------------\n");
+
+
+    if((seqNumMex != exp_seq_numb) || (messageLength != pos)){
         return false;
     }
     

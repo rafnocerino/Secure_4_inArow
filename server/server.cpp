@@ -135,10 +135,11 @@ bool receive_UpdateStatus(int socket,unsigned char* sendBuffer,uint8_t seqNum,so
 bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seqNum, sockaddr_in* clientAddress, int clientAddressLen){
 	string result = "";
 	vector<string> availableUserList = availableUserListUserDataStructure();
-	for(int i=0 ; i < availableUserList.size() - 1 ; i++){
-		result += availableUserList.at(i) +";";
+	for(int i=0 ; i < availableUserList.size(); i++){
+		result += availableUserList.at(i); 
+		if(i < availableUserList.size() - 1)
+			result += ";"; 
 	}
-	result += availableUserList.at(availableUserList.size() - 1);
 	printf("LISTA DI UTENTI ATTUALMENTE IN ATTESA DI UNA SFIDA: %s.\n",result.c_str());
 	int resultLength = result.length();
 	int chunkPos = 0;
@@ -150,18 +151,19 @@ bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seq
 		uint8_t chunkSize = resultLength > 255 ? 255 : resultLength;
 		chunk = new char[chunkSize];
 
-		resultLength = resultLength - chunkSize;
+		resultLength = resultLength - 255;
 		memcpy(chunk,result_c + chunkPos,chunkSize);
 		chunkPos += chunkSize;
 
 		
 		seqNum = seqNum + 1;
 
-		send_AvailableUserListChunk(socket,buffer,seqNum,chunkSize,chunkSize == 255 ? false : true,chunk,clientAddress, clientAddressLen);
+		send_AvailableUserListChunk(socket,buffer,seqNum,chunkSize,chunkSize == 255 ? false : true,chunk,clientAddress, sizeof(clientAddress));
 		
-		if(!receive_ACK(socket,seqNum,clientAddress,clientAddressLen)){
+		if(!receive_ACK(socket,seqNum,clientAddress,sizeof(clientAddress))){
 			return false;
 		}
+
 	}
 
 	return true;
@@ -231,7 +233,7 @@ void* serveClient(void *arg){
 
 								//Nel caso di una sfida va fatto spazio per l'username dell'utente sfidato					
 								char* usernameSfidato = (char*)malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + 1));								
-								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
@@ -386,7 +388,7 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 											printf("Errore: impossibile trovare l'utente richiesto.\n");
 										}
 									}
-								}else if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+								}else if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
@@ -405,13 +407,12 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 								//send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
 
 								//Nel caso l'utente e' in idle può solo inviare un messaggio di Update Status
-								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
-									sleep(1);
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
-									printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
+									//printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
 									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
 								}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username)){
 									//Invio il corrispondente ACK

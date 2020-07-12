@@ -204,6 +204,10 @@ void send_challengeTimerExpired(int socket,unsigned char* buffer,uint8_t seqNum,
 }
 
 void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size){
+
+	printf("Addr. size -> %d.\n",addr_size);
+	printf("Porta -> %u.\n",client_addr->sin_port);
+	printf("Indirizzo -> %s.\n",inet_ntoa(client_addr->sin_addr));
 	int pos = 0;
     uint8_t seqNumMex = seq_numb;
     uint8_t opcodeMex = OPCODE_AVAILABLE_USER_LIST;
@@ -218,12 +222,15 @@ void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_nu
     pos += SIZE_LEN;
 	memcpy(buffer + pos, &lastFlagMex, SIZE_LAST_FLAG);
     pos += SIZE_LAST_FLAG;	
-    memcpy(buffer + pos, chunk, strlen(chunk));
-    pos += strlen(chunk);
+    memcpy(buffer + pos, chunk, lenMex);
+    pos += lenMex;
 
-	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)client_addr, addr_size);
+	printf("pos -> %d.\n",pos);
+	BIO_dump_fp(stdout,(const char*)buffer,pos);
+
+	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)client_addr, sizeof(*client_addr));
 	if(ret < pos){
-		perror("There was an error during the sending of the ACK \n");
+		perror("There was an error during the sending of the chunk.\n");
 	}
 }
 
