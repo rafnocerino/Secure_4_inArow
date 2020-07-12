@@ -150,6 +150,10 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
     pos += SIZE_SEQNUMBER;
 
     ret = sendto(socket, buffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)sv_addr, addr_size);
+	
+	printf("ret -> %d\n",ret);
+	BIO_dump_fp(stdout,(const char*)buffer,pos);
+
     if (ret < (int)SIZE_MESSAGE_ACK) {
         perror("There was an error during the sending of the ACK \n");
         exit(-1);
@@ -248,7 +252,7 @@ void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum
 void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
 	uint8_t opcode = OPCODE_CHALLENGE_START;
 	uint8_t seqNumMex = seqNum;
-	uint8_t lenMex = strlen(ip);
+	uint8_t lenMex = strlen(ip) + 1;
 	int pos = 0;
 	memset(buffer,0,BUF_SIZE);
 	

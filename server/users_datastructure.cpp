@@ -42,7 +42,7 @@ bool addNewUserDataStructure(string username,struct sockaddr_in IPaddress){
 		usersDataStructureSize += 1;
 	pthread_mutex_unlock(&lockUsersDataStructure);
 	printUserDataStructure();	
-	return found == 1 ? true : false;
+	return found == -1 ? false : true;
 }
 
 int bSearchUserDataStructureFromUsername(string username){

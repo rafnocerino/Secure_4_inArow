@@ -33,7 +33,7 @@ using namespace std;
 #define SERVER_PORT 7799
 #define MAX_REQUEST 50
 #define BUF_SIZE 512
-#define SLEEP 60
+#define SLEEP 20
 
 pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
@@ -53,7 +53,7 @@ struct timer{
 	unsigned char* buffer;
 	struct sockaddr_in clientAddress;	
 	bool *exitORerror;
-	uint8_t* seqNum;
+	uint8_t seqNum;
 };
 
 vector<int> intializeIndexesAvailableTID(){
@@ -67,8 +67,10 @@ bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int cl
 	uint8_t seqNum = expSeqNum;
 	uint8_t opcode = OPCODE_ACK;
 	unsigned char* buffer = (unsigned char*)malloc(BUF_SIZE);
-	socklen_t addressLen;
+	socklen_t addressLen = sizeof(clientAddress);
+	memset(buffer,0,BUF_SIZE);
 	int sizeMessageReceived = recvfrom(socket,buffer,SIZE_MESSAGE_ACK, 0, (struct sockaddr*)clientAddress,&addressLen);
+	printf("---> %d.\n",sizeMessageReceived);
 	if(sizeMessageReceived < SIZE_MESSAGE_ACK){
 		perror("There was an error during the reception of the ACK ! \n");
 		memset(buffer, 0, BUF_SIZE);
@@ -77,11 +79,12 @@ bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int cl
 		return false;
 	}
 	if(!check_ack(socket,buffer,sizeMessageReceived,OPCODE_ACK,seqNum)){
+		printf("Errore: messaggio malformato all'interno della recive ACK.\n");
 		send_malformedMsg(socket,buffer,OPCODE_MALFORMED_MEX, seqNum,clientAddress, sizeof(clientAddress));
 	}
 	return true;	
 }
-
+/*
 void* timer_thread(void *arg){
 	
 	int challengeId = ((struct timer*)arg)->challengeId;
@@ -89,37 +92,29 @@ void* timer_thread(void *arg){
 	unsigned char* buffer = ((struct timer*)arg)->buffer;
 	struct sockaddr_in clientAddress = ((struct timer*)arg)->clientAddress;	
 	bool *exitORerror = ((struct timer*)arg)->exitORerror;
-	uint8_t* seqNum = ((struct timer*)arg)->seqNum;
+	uint8_t seqNum = ((struct timer*)arg)->seqNum;
 	memset(buffer,0,BUF_SIZE);	
 
-	//sleep:
-	#ifdef _WIN32
-	Sleep(SLEEP);
-	#else
-	usleep(SLEEP*1000);  /* sleep for 100 milliSeconds */
-  	#endif
-	
+	sleep(SLEEP);	
+
 	if(removeChallengeDataStructureFromChallengeNumber(challengeId)){
 		//Se la challenge e' presente all'interno della struttura dati significa che non vi e' stata ancora una risposta
-		//Percio' devo inviare un messaggio challenge timer expired:
-		*seqNum = * seqNum + 1;
 		//Invio il messaggio di timer expired		
-		send_challengeTimerExpired(socket,buffer,*seqNum,&clientAddress,sizeof(clientAddress));
+		send_challengeTimerExpired(socket,buffer,seqNum,&clientAddress,sizeof(clientAddress));
 		//Aspetto il relativo ACK
-		if(!receive_ACK(socket,OPCODE_ACK,&clientAddress,sizeof(clientAddress))){
+		if(!receive_ACK(socket,seqNum,&clientAddress,sizeof(clientAddress))){
 			*exitORerror = true;
 		}
 	}
-}
-
-bool receive_UpdateStatus(int socket,unsigned char* sendBuffer,sockaddr_in* clientAddress,int clientAddressLen,uint8_t* statusCode){
+}*/
+/*
+bool receive_UpdateStatus(int socket,unsigned char* sendBuffer,uint8_t seqNum,sockaddr_in* clientAddress,uint8_t* statusCode){
 	unsigned char* buffer = (unsigned char*)malloc(BUF_SIZE);
 	socklen_t addressLen;
 	int sizeMessageReceived = recvfrom(socket, buffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)clientAddress, &addressLen);
-	uint8_t seqNum;
 	char* username = (char *) malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + SIZE_STATUS_CODE));
-
-	if(check_updateStatus(buffer,sizeMessageReceived,seqNum,statusCode,username)){
+	
+	if(check_updateStatus(socket,buffer,sizeMessageReceived,seqNum,statusCode,username)){
 		printf("Il messaggio di update status ricevuto e' corretto.\n");
 		printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
 		printf("STATUS CODE RICEVUTO: %u.\n",*statusCode);
@@ -128,13 +123,13 @@ bool receive_UpdateStatus(int socket,unsigned char* sendBuffer,sockaddr_in* clie
 		//Aggiorno la struttura dati con l'informazioni degli utenti
 		setStatusUserDataStructure(*statusCode,username);
 
-		send_ACK(socket,sendBuffer,OPCODE_ACK,seqNum,clientAddress,sizeof(clientAddress));
+		send_ACK(socket,sendBuffer,OPCODE_ACK,seqNum,clientAddress,addressLen);
 		return true;	
 	}
 
 	return false;
 }
-
+*/
 
 
 bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seqNum, sockaddr_in* clientAddress, int clientAddressLen){
@@ -205,13 +200,14 @@ void* serveClient(void *arg){
 			printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
 			printf("USERNAME. RICEVUTO: %s.\n",username);
 			memset(sendBuffer, 0, BUF_SIZE);
+			printf("Porta a cui mando l'ack del login -> %u\n",clientAddress.sin_port);
 			send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
 			if(addNewUserDataStructure(username,clientAddress)){
-				seqNum = seqNum + 1;
-				send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
+				//seqNum = seqNum + 1;
+				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
 	
-				if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
-					if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress))){
+				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
+					//if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress))){
 						
 						uint8_t statusCode = STATUS_IDLE;
 						bool exitORerror = false;
@@ -221,12 +217,12 @@ void* serveClient(void *arg){
 
 						while(!exitORerror){
 
+							printf("Sono risalito.\n");
+							memset(sendBuffer, 0, BUF_SIZE);
+							sizeMessageReceived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)&clientAddress, &clientAddressLen); 
 							seqNum = seqNum + 1;
-
+							printf("Porta da cui ricevo il messaggio -> %s\n",inet_ntoa(clientAddress.sin_addr));
 							if(statusCode == STATUS_CHALLENGING){
-									
-								memset(sendBuffer, 0, BUF_SIZE);
-								sizeMessageReceived = recvfrom(threadSocket, sendBuffer, SIZE_MESSAGE_CHALLENGE_REQUEST, 0,(struct sockaddr*)&clientAddress, &clientAddressLen); 
 
 								//Nel caso in cui l'utente si mette in sfida possiamo:
 								//a- Mandare un messaggio di update status
@@ -235,16 +231,12 @@ void* serveClient(void *arg){
 
 								//Nel caso di una sfida va fatto spazio per l'username dell'utente sfidato					
 								char* usernameSfidato = (char*)malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + 1));								
-								if(check_updateStatus(sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));		
-								}else if(check_exit(sendBuffer,sizeMessageReceived,seqNum,username)){
-									//Invio il corrispondente ACK
-									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
-									exitORerror = true;
-								}else if(check_challengeRequest(threadSocket,sendBuffer,sizeMessageReceived,OPCODE_CHALLENGE_REQUEST,seqNum,usernameSfidato,challengeId,seqNum)){
+								}else if(check_challengeRequest(threadSocket,sendBuffer,sizeMessageReceived,OPCODE_CHALLENGE_REQUEST,seqNum,username,challengeId,seqNum,usernameSfidato)){
 									//Se arriva il messaggio di challenge request occorre:
 									//1-Inviare il relativo ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
@@ -253,6 +245,7 @@ void* serveClient(void *arg){
 									if(challengeId == -1){
 										//Nel caso in cui viene restituito -1 significa che l'utente sfidato non stava aspettando 
 										//una challenge perciò occorre inviare un messaggio di challenge unavailable
+										printf("Errore: challengeId pari a -1.\n");
 										memset(sendBuffer, 0, BUF_SIZE);
 										seqNum = seqNum + 1;	
 										send_challengeUnavailable(threadSocket,sendBuffer,seqNum,&clientAddress,sizeof(clientAddress));
@@ -271,9 +264,13 @@ void* serveClient(void *arg){
 										struct sockaddr_in utenteSfidatoAddress;
 										memset(&utenteSfidatoAddress,0,sizeof(utenteSfidatoAddress));
 										if(getIPUserDataStructure(usernameSfidato,&utenteSfidatoAddress)){
-											//Estrazione del nuovo sequence number
-											seqNum = seqNum + 1;	
+												
 											send_challengeRequest(threadSocket,&utenteSfidatoAddress,sizeof(utenteSfidatoAddress),sendBuffer, username,usernameSfidato,seqNum,challengeId);
+											
+																							
+										if(receive_ACK(threadSocket,seqNum,&utenteSfidatoAddress,sizeof(utenteSfidatoAddress))){
+											/*//Estrazione del nuovo sequence number
+											seqNum = seqNum + 1;
 											//Creo il thread per la gestione del timer:
 											pthread_t tid;	
 											struct timer* currentTimer = (struct timer*)malloc(sizeof(struct timer));
@@ -282,14 +279,10 @@ void* serveClient(void *arg){
 											currentTimer->buffer = sendBuffer;
 											currentTimer->clientAddress = clientAddress;
 											currentTimer->exitORerror = &exitORerror;
-											currentTimer->seqNum = &seqNum;
-											if(pthread_create(&tid,NULL,timer_thread,(void*)currentTimer) != 0 ){
-												printf("ERRORE: e' stato riscontrato un errore nella fase di creazione di un thread.\n");
-											}
-																							
-											//Mi metto in attesa dell'ACK
-											if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
-												//Non devo fare niente a questo punto in quanto la gestione e' tutta lato thread dello sfidante
+											currentTimer->seqNum = seqNum;
+												if(pthread_create(&tid,NULL,timer_thread,(void*)currentTimer) != 0 ){
+													printf("ERRORE: e' stato riscontrato un errore nella fase di creazione di un thread.\n");
+												}*/	
 											}else{
 												printf("Errore nella ricezione dell'ACK relativo alla sfida.\n");
 												exitORerror = true;					
@@ -310,12 +303,9 @@ void* serveClient(void *arg){
 								//a-Un messaggio di challenge accepted
 								//b-Un messaggio di challenge refused
 								//c-Un messaggio di update status
-								//d-Un messaggio di exit
 								
-								memset(sendBuffer, 0, BUF_SIZE);
-								sizeMessageReceived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)&clientAddress, &clientAddressLen); 
 								
-								if(check_challengeAccepted(sendBuffer,sizeMessageReceived,seqNum,&challengeId)){
+								if(check_challengeAccepted(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&challengeId)){
 									//Nel caso in cui viene ricevuta la challenge accepted:
 									//Va inviato il relativo ACK:
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
@@ -330,13 +320,13 @@ void* serveClient(void *arg){
 											
 											//Vanno recuperati gli indirizzi degli utenti:
 											struct sockaddr_in sfidante_addr;
-											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username2,&sfidante_addr)){
+											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){
 													printf("IP SFIDANTE: %s\n",inet_ntoa(sfidante_addr.sin_addr));													
 												seqNum = seqNum + 1; 	 send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),strdup("0000000000000000"),seqNum,&sfidante_addr,sizeof(sfidante_addr));
 												// Aspettiamo di ricevere l'ACK
 												if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
-													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente
-													seqNum = seqNum + 1;	send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),strdup("0000000000000000"),seqNum,&clientAddress,sizeof(clientAddress));
+													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente	
+send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),strdup("0000000000000000"),seqNum,&clientAddress,sizeof(clientAddress));
 													//Aspettiamo di ricevere l'ACK													
 													if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
 														printf("Correttamente inviate le challenge start.\n");
@@ -349,7 +339,6 @@ void* serveClient(void *arg){
 													exitORerror = true;
 												}
 											
-send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),strdup("0000000000000000"),seqNum,&clientAddress,sizeof(clientAddress));
 											}else{
 												printf("Errore: recupero dello IP dello sfidato non riuscito.\n");
 												exitORerror = true;
@@ -372,18 +361,20 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 									}
 
 								}else if(check_challengeRefused(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&challengeId)){
+									
 									//Se la challenge e' stata rifiutata prima devo informare lo sfidante
 									int challengeIndex = searchChallengeDataStructureFromChallengeNumber(challengeId); 
 									if(challengeIndex == -1){
 										printf("Errore: impossibile trovare la challenge.\n");
 									}else{
 										struct sockaddr_in sfidante_addr;
-										seqNum = seqNum + 1;
-										if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username2,&sfidante_addr)){
+										if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){
 											send_challengeRefused(threadSocket,sendBuffer,seqNum,challengeId,&sfidante_addr,sizeof(sfidante_addr));
 											//Attendo l'ACK
-											if(!receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
+											if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
 												printf("Challenge refused inoltrata correttamente.\n");
+												//Mando l'ACK al mio utente 
+												send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
 												//Poi la elimino dalla struttura dati
 												if(!removeChallengeDataStructureFromChallengeNumber(challengeId)){
 													printf("Errore: impossibile rimuovere la challenge .\n");
@@ -395,26 +386,43 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 											printf("Errore: impossibile trovare l'utente richiesto.\n");
 										}
 									}
-								}else if(receive_UpdateStatus(threadSocket,sendBuffer,&clientAddress, sizeof(clientAddress),&statusCode)){
+								}else if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
+									setStatusUserDataStructure(statusCode,username);
+									//Invio il corrispondente ACK
+									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
 									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
-								}else if(check_exit(sendBuffer,sizeMessageReceived,seqNum,username)){
+								/*}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username)){
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
-									exitORerror = true;
+									exitORerror = true;*/
 								}else{
 									printf("Errore: arrivato un messaggio di un tipo non riconosciuto.\n");
-									send_malformedMsg(threadSocket,sendBuffer,OPCODE_MALFORMED_MEX,seqNum,&clientAddress,sizeof(clientAddress));
+									send_malformedMsg(threadSocket,sendBuffer,OPCODE_MALFORMED_MEX,seqNum,&clientAddress,clientAddressLen);
 								}
 
 							}else if(statusCode == STATUS_IDLE){
+								//send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
+
 								//Nel caso l'utente e' in idle può solo inviare un messaggio di Update Status
-								if(receive_UpdateStatus(threadSocket,sendBuffer,&clientAddress,sizeof(clientAddress),&statusCode)){
+								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,&statusCode,username)){
+									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
+									setStatusUserDataStructure(statusCode,username);
+									//Invio il corrispondente ACK
+									sleep(1);
+									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
+									printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
 									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
+								}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username)){
+									//Invio il corrispondente ACK
+									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
+									exitORerror = true;								
 								}else{
 									printf("Errore nella ricezione dell'update status (STATUS == IDLE) .\n");
 									exitORerror = true;
-								send_malformedMsg(threadSocket,sendBuffer,OPCODE_MALFORMED_MEX,seqNum,&clientAddress,sizeof(clientAddress));
+								send_malformedMsg(threadSocket,sendBuffer,OPCODE_MALFORMED_MEX,seqNum,&clientAddress,clientAddressLen);
 								}
+								//La EXIT può essere fatta solo quando si è in IDLE
 							}
 					}
 					//Se si esce dal ciclo in ogni caso va rimosso l'utente dalla struttura dati
@@ -423,8 +431,9 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 }
 }
 }
-}
-}
+//}
+//}
+//}
 /*
 					}else{
 						printf("Errore nell'invio della prima lista degli utenti disponibili.\n");
@@ -542,7 +551,7 @@ int main(){
 	memset(&serverAddress,0,sizeof(serverAddress));
 	serverSocket = socket(AF_INET,SOCK_DGRAM,0); //[]
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_port = htons(SERVER_PORT); //[]
+	serverAddress.sin_port = SERVER_PORT; //[]
 	serverAddress.sin_addr.s_addr = INADDR_ANY; //[]
 	if(bind(serverSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0){ //[]
 		printf("ERRORE: e' stato riscontrato un errore nella fase di bind.\n");
