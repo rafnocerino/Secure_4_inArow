@@ -185,7 +185,7 @@ void* serveClient(void *arg){
 	RAND_poll();
 	RAND_bytes(&seqNum,1);
 	char* username;
-	username = (char *) malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
+	username = (char *) malloc(255);
 	int challengeId = -1;	
 	unsigned char* sendBuffer;
 	sendBuffer = (unsigned char*)malloc(BUF_SIZE);	
@@ -404,8 +404,6 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 								}
 
 							}else if(statusCode == STATUS_IDLE){
-								//send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen);
-
 								//Nel caso l'utente e' in idle può solo inviare un messaggio di Update Status
 								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
@@ -540,7 +538,6 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 	pthread_mutex_unlock(&lockIndexesAvailableTID);
     sem_post(&indexesSem);	
 	printf("Esco dal thread serveClient.\n");
-	pthread_exit(NULL);
 }
 
 int main(){

@@ -121,6 +121,9 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
     seq_numb = seq_numb + 1;  // attualmente scelto cosi-->futuro randomizzato
     user_len = strlen(user)+1;
+	
+	printf("USER: %s.\n",user);
+	printf("USER.LEN: %u.\n",user_len);
 
     // sent the update status used to notify the server that the client will wait challenge requests
     send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, seq_numb, STATUS_WAITING, sv_addr_priv, addr_size);
@@ -562,7 +565,7 @@ int main() {
     struct sockaddr_in sv_addr_challenge;
     char*  available_users;
     int avail_len;
-	char* user = (char*) malloc(6);
+	char* user = (char*) malloc(255);
 
 	cout << "Inserisci nome utente:" << endl;
 	cin >> user;
