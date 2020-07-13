@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "send_message.h"
 
 #include "protocol_constant.h"
 
@@ -33,7 +34,7 @@
 using namespace std;
 
 /* To many parameters */ 
-void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
+/*void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
     int pos = 0;
     int ret;
     op_code = OPCODE_ACK;
@@ -47,7 +48,7 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
         perror("There was an error during the sending of the ACK \n");
         exit(-1);
     }
-}
+}*/
 
 void wait_ACK(int sd, sockaddr_in* sock, uint8_t sq_numb)
 {
@@ -97,7 +98,7 @@ void send_Move(int sd, sockaddr_in* sock, uint8_t seq_numb, int playerMoveColumn
 	The initiateGame function initite the game by insertin in each matrix element the
 		symbol *
 */
-int initiateGame(char gameMatrix[6][7])
+void initiateGame(char gameMatrix[6][7])
 {
 	int playerId;
 	for(int i=0;i<6;i++)
@@ -110,9 +111,9 @@ int initiateGame(char gameMatrix[6][7])
 	cout << "******************************"<<endl;
 	cout << "*** Welcome to 4 in a row ***" <<endl;
 	cout << "******************************"<<endl;
-	cout<<"Which player are you?"<<endl;
-	cin>>playerId;
-	return playerId;
+	//cout<<"Which player are you?"<<endl;
+	//cin>>playerId;
+	//return playerId;
 }
 
 /**
@@ -343,22 +344,21 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 	return winner;
 }
 
-int gameStart()
+int gameStart(unsigned char* IpAddr,int playerI)
 {
 	/* UDP Socket data structure */
 	int sd, new_sd, ret, check_bind;
 	struct sockaddr_in adversary_socket; //where to send/recive data
 	/* ************************* */
-	int myPlayerId=0;
+	int myPlayerId=playerI;
+	int playerId=0;
 	int indexMove;
 	uint8_t moveNumber=0;
-	int playerId=0; //this must be filled by the protocol
 	bool winner=false;
 	char  gameMatrix[6][7];
 	char ad_soc_num[10];
-	
-	myPlayerId=initiateGame(gameMatrix);
-	
+        initiateGame(gameMatrix);
+
 	/********************************** SOCKET CREATION **************************************/
 	sd=socket(AF_INET, SOCK_DGRAM, 0);
 	memset(&adversary_socket, 0, sizeof(adversary_socket));
@@ -377,7 +377,7 @@ int gameStart()
 		}
 	}	
 	else{
-		inet_pton(AF_INET,"127.0.0.1",&adversary_socket.sin_addr);  
+		inet_pton(AF_INET,(char*)IpAddr,&adversary_socket.sin_addr);  
 	}
 	/****************************************************************************************/
 	
@@ -395,7 +395,3 @@ int gameStart()
 	return 0;
 }
 
-int main()
-{
-	gameStart();
-}

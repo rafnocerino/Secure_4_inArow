@@ -12,6 +12,7 @@
 #include "protocol_constant.h"
 #include "check_message.h"
 #include "send_message.h"
+#include "gioco_v2.1.h"
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
@@ -286,7 +287,8 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
                 send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size);
                 // here we will insert a function call in order to start the game
-            }
+		gameStart(adv_ip,1);            
+		}
         }
 
         // we have refused the challenge --> we send a challenge refused msg
@@ -533,6 +535,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
         send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);
         // here we will insert a function call in order to start the game
+	gameStart(adv_ip,0);
     }
     
 
@@ -623,18 +626,9 @@ int main() {
             continue;
         }
 
-        if (strcmp(cmd, "!challenge") == 0) {
-
-            
-            /*for(int i=0;i<sizeof(available_users);i++){
-                cout<<available_users[i]<<endl;
-            }*/
-            //rimuovere stringa user hard coded
+        if (strcmp(cmd, "!challenge") == 0) {        
             challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len);
-            cout<<"The list of the available users is: "<<endl;
-            //cout<<available_users<<endl;
-					
-			//printf("")
+
             continue;
         }
 
