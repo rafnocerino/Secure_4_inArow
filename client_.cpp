@@ -44,14 +44,13 @@ void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_
 
 }
 
-void login(int sock,struct sockaddr_in& serverMainAddress,struct sockaddr_in& serverPrivAddress,const char* user,int addr_size){
+void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 	
 	unsigned char *buf;
 	buf = (unsigned char*)malloc(BUF_SIZE);
 	char ip_addr[] = "127.0.0.1";
     uint16_t port = 7799;
     struct sockaddr_in sv_addr;
-	socklen_t size = addr_size;
 	struct timeval time;
 	int received;
 	bool check;
@@ -64,8 +63,9 @@ void login(int sock,struct sockaddr_in& serverMainAddress,struct sockaddr_in& se
     sv_addr.sin_port = port;
     inet_pton(AF_INET, ip_addr, &sv_addr.sin_addr);
 	
+	socklen_t size = sizeof(sv_addr);
 	
-	send_login(sock,buffer,user,strlen(user)+1,serverAddress,size);
+	send_login(sock,buf,user,strlen(user)+1,sv_addr,size);
 	
 	setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time)); // set timer on socket
 	
