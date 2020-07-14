@@ -13,6 +13,9 @@
 #include "check_message.h"
 #include "send_message.h"
 #include "gioco_v2.1.h"
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
@@ -41,38 +44,169 @@ void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_
 
 }
 
-void login(int sock,struct sockaddr_in& serverAddress,const char* user){
+void login(int sock,struct sockaddr_in& serverMainAddress,struct sockaddr_in& serverPrivAddress,const char* user,int addr_size){
+	
 	unsigned char *buf;
-	buf = (unsigned char*)malloc(SIZE_MESSAGE_LOGIN);
-	int memcpyPos = 0;
-	uint8_t opcode = OPCODE_LOGIN;	
-	seq_numb = 0;
-	uint8_t stringDim = strlen(user) + 1;
-	memcpy(buf , &opcode, SIZE_OPCODE);
-	memcpyPos += SIZE_OPCODE;
-	memcpy(buf + memcpyPos,&seq_numb,SIZE_SEQNUMBER);	
-	memcpyPos += SIZE_SEQNUMBER;
-	memcpy(buf + memcpyPos,&stringDim,SIZE_LEN);
-	memcpyPos += SIZE_LEN;
-	memcpy(buf + memcpyPos,user,strlen(user)+1);
-	memcpyPos += strlen(user) + 1;
-    char ip_addr[] = "127.0.0.1";
+	buf = (unsigned char*)malloc(BUF_SIZE);
+	char ip_addr[] = "127.0.0.1";
     uint16_t port = 7799;
     struct sockaddr_in sv_addr;
+	socklen_t size = addr_size;
+	struct timeval time;
+	int received;
+	bool check;
+	
+	time.tv_sec=30;
+	time.tv_usec=0;
+	
     memset(&sv_addr, 0, sizeof(sv_addr));
     sv_addr.sin_family = AF_INET;
     sv_addr.sin_port = port;
     inet_pton(AF_INET, ip_addr, &sv_addr.sin_addr);
-	printf("Messaggio inviato:\n");
- 	BIO_dump_fp (stdout, (const char *)buf, memcpyPos);
-	sendto(sock, buf, memcpyPos, 0, (struct sockaddr*)&sv_addr, sizeof(struct sockaddr_in));
-	//Ricezione dell'ACK
-	free(buf);
-	socklen_t size = sizeof(struct sockaddr_in);
-	buf = (unsigned char*)malloc(SIZE_MESSAGE_ACK);
-	int received = recvfrom(sock, buf, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)&serverAddress,&size);
-	printf("Messaggio ricevuto:\n");
- 	BIO_dump_fp (stdout, (const char *)buf, received);
+	
+	
+	send_login(sock,buffer,user,strlen(user)+1,serverAddress,size);
+	
+	setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time)); // set timer on socket
+	
+	memset(buf,0,BUF_SIZE);
+	int pos = 0;
+	received = recvfrom(sock, buf, SIZE_MESSAGE_SIGNATURE_MESSAGE, 0, (struct sockaddr*)serverPrivAddress, &size);
+	
+	if(received <= 0){
+		close(sock);
+		exit(-1);
+	}
+		
+			
+	int certificate_len;
+	memcpy(&certificate_len,buffer+SIZE_OPCODE,SIZE_CERTIFICATE_LEN);
+			
+	unsigned char* certificate_buffer = (unsigned char*)malloc(certificate_len+SIZE_OPCODE);
+	unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+	unsigned char* signature = (unsigned char*)malloc(SIZE_SIGNATURE);
+			
+	int received_cert = recvfrom(sock,certificate_buffer,certificate_len+SIZE_OPCODE,0,(struct sockaddr*)serverPrivAddress, &size);
+	if(received_cert <= 0 ){
+		close(sock);
+		exit(-1);
+	}
+	
+	check=check_signatureMessageClient(buf,received,random_data,signature);
+	if(!check){
+		close(sock);
+		exit(-1);
+	}
+	
+	check=check_certificateMessage(certificate_buffer,received_cert,certificate_len);
+	if(!check){
+		close(sock);
+		exit(-1);
+	}
+	
+	X509* CA_cert=NULL;
+	X509_CRL* crl=NULL;
+	X509_STORE* store = X509_STORE_new();
+	
+	FILE* CA_cert_file = fopen("./Certificates/CA_4Row_crl.pem","rb");
+	if(f==NULL){
+		printf("Error during the opening of the CA certificate! \n");
+		exit(-1);
+	}
+	
+	CA_cert=PEM_read_X509(CA_cert_file,NULL,NULL,NULL);
+	if(CA_cert==NULL){
+		printf("Error during the reading of the CA certificate ! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	fclose(CA_cert_file);
+	
+	FILE* CRL_file = fopen("./Certificates/CA_4Row_crl.pem","rb");
+	if(CRL_file==NULL){
+		printf("Error during the opening of the CRL! \n");
+		close(sock);
+		exit(-1);
+	 }
+	 
+	 crl=PEM_read_X509_CRL(CRL_FILE,NULL,NULL,NULL);
+	 if(crl==NULL){
+		printf("Error during the reading of the crl ! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	fclose(CRL_file);
+	
+	int ret=X509_STORE_add_cert(store,cert);
+	if(ret != 1){
+		printf("There was an error during the storing of the certificate ! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	ret=X509_STORE_add_crl(store,crl);
+	if(ret != 1){
+		printf("There was an error during the storing of the crl ! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	X509_STORE_set_flags(store,X509_V_FLAG_CRL_CHECK);
+	
+	//now i write on a temporary file the certificate of the CA
+	
+	FILE* f = fopen("temp_sv_cert.pem","wb");
+	if(!f){
+		perror("There was an error during the creating of temporary file ! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	ret = fwrite(certificate_buffer+SIZE_OPCODE,1,certificate_len,f);
+	if(ret < certificate_len){
+		perror("There was an error during the storing of the temp server certificate! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	fclose(f);
+	
+	f = fopen("temp_sv_cert.pem","rb");
+	
+	X509* server_cert=NULL;
+	server_cert=PEM_read_X509(f,NULL,NULL,NULL);
+	if(server_cert==NULL){
+		printf("Error during the reading of the server certificate! \n");
+		exit(-1);
+	}
+	
+	X509_STORE_CTX* ctx = X509_STORE_CTX_new();
+	X509_STORE_CTX_init(ctx,store,server_cert,NULL);
+	
+	ret=X509_verify_cert(ctx);
+	if(ret!=1){
+		printf("The verification of the server certificate has given negative result! \n");
+		exit(-1);
+	}else{
+		printf("Verification successful for the server certificate ! \n");
+	}
+	
+	X509_STORE_CTX_free(ctx);
+	
+	EVP_PKEY* server_pubkey = X509_get_pubkey(server_cert);
+	
+	check=verifySignMsg(user,buf,SIZE_MESSAGE_SIGNATURE_MESSAGE,server_pubkey);
+	if(!check){
+		cout<<"The signature verification has given negative result  !\n";
+		close(sock);
+		exit(-1);
+	}
+	
+	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,addr_size);
+	
+
 }
 
 void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user){
