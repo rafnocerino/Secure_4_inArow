@@ -274,7 +274,7 @@ void* serveClient(void *arg){
 				if(recived != SIZE_MESSAGE_SIGNATURE_MESSAGE){
 					
 					//Controllo la firma del messaggio:
-					if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE)){
+					if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,NULL)){
 						
 						//Controllo della struttura del messaggio firmato:
 						if(check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){

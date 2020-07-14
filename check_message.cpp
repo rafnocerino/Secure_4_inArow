@@ -436,3 +436,44 @@ bool check_signature_message_server(unsigned char* buffer,int messageLength,unsi
 	free(randomDataMex);
 	return true;
 }
+
+bool check_certificateMessage(unsigned char* certificate_buffer,int messageLength,int cert_len){
+	int pos = 0;
+	uint8_t rcv_opcode;
+	memcpy(&rcv_opcode,certificate_buffer,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+	
+	if(messageLength != cert_len + SIZE_OPCODE){
+		return false;
+	}	
+	
+	if(rcv_opcode != OPCODE_CERTIFICATE){
+		return false;
+	}
+	
+	return true;
+}
+
+bool check_signatureMessageClient(unsigned char* buffer,int messageLength,unsigned char* random_data,unsigned char* signature){
+	
+	int pos = 0;
+	uint8_t rcv_opcode;
+	
+	memcpy(&rcv_opcode,buffer,SIZE_OPCODE);
+	pos = pos + SIZE_OPCODE + SIZE_CERTIFICATE_LEN;
+	
+	memcpy(random_data,buffer + pos,SIZE_RANDOM_DATA);
+	pos = pos + SIZE_RANDOM_DATA;
+	
+	memcpy(signature,buffer + pos,SIZE_SIGNATURE);
+	
+	if(messageLength != SIZE_MESSAGE_SIGNATURE_MESSAGE){
+		return false;
+	}	
+	
+	if(rcv_opcode != OPCODE_SIGNATURE_MESSAGE){
+		return false;
+	}
+	
+	return true;
+}

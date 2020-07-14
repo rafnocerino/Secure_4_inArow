@@ -18,3 +18,5 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber);
 bool check_available_userList(int socket,unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag);
 bool check_signature_message_server(unsigned char* buffer,int messageLength,unsigned char* expectedRandomData);
+bool check_certificateMessage(unsigned char* certificate_buffer,int messageLength,int cert_len);
+bool check_signatureMessageClient(unsigned char* buffer,int messageLength,unsigned char* random_data,unsigned char* signature);

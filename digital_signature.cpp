@@ -97,20 +97,22 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	return true;
 }
 
-bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength){
+bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,EVP_PKEY* pubkey){
    int ret; // used for return values
+   
+   if(pubkey == NULL){
+		// read the peer's public key file from keyboard:
+		string pubkey_file_name="./public keys/";
+		pubkey_file_name+=reinterpret_cast<const char*>(userName);
+		pubkey_file_name+=".pem";
 
-   // read the peer's public key file from keyboard:
-   string pubkey_file_name="./public keys/";
-   pubkey_file_name+=reinterpret_cast<const char*>(userName);
-   pubkey_file_name+=".pem";
-
-   // load the peer's public key:
-   FILE* pubkey_file = fopen(pubkey_file_name.c_str(), "r");
-   if(!pubkey_file){ cerr << "Error: cannot open file '" << pubkey_file_name << "' (missing?)\n"; exit(1); }
-   EVP_PKEY* pubkey = PEM_read_PUBKEY(pubkey_file, NULL, NULL, NULL);
-   fclose(pubkey_file);
-   if(!pubkey){ cerr << "Error: PEM_read_PUBKEY returned NULL\n"; exit(1); }
+		// load the peer's public key:
+		FILE* pubkey_file = fopen(pubkey_file_name.c_str(), "r");
+		if(!pubkey_file){ cerr << "Error: cannot open file '" << pubkey_file_name << "' (missing?)\n"; exit(1); }
+		pubkey = PEM_read_PUBKEY(pubkey_file, NULL, NULL, NULL);
+		fclose(pubkey_file);
+		if(!pubkey){ cerr << "Error: PEM_read_PUBKEY returned NULL\n"; exit(1); }
+	}
 	
 	long int clear_size = messageLength - SIZE_SIGNATURE;
 	
