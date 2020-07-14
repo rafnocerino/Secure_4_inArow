@@ -13,6 +13,10 @@
 #include "check_message.h"
 #include "send_message.h"
 #include "gioco_v2.1.h"
+#include "digital_signature.h"
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/rand.h>
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 
@@ -44,7 +48,7 @@ void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_
 
 }
 
-void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
+void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
 	
 	unsigned char *buf;
 	buf = (unsigned char*)malloc(BUF_SIZE);
@@ -65,9 +69,9 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 	
 	socklen_t size = sizeof(sv_addr);
 	
-	send_login(sock,buf,user,strlen(user)+1,sv_addr,size);
+	send_login(sock,buf,user,strlen(user)+1,&sv_addr,size);
 	
-	setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time)); // set timer on socket
+	setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time)); // set timer on socket
 	
 	memset(buf,0,BUF_SIZE);
 	int pos = 0;
@@ -80,7 +84,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 		
 			
 	int certificate_len;
-	memcpy(&certificate_len,buffer+SIZE_OPCODE,SIZE_CERTIFICATE_LEN);
+	memcpy(&certificate_len,buf+SIZE_OPCODE,SIZE_CERTIFICATE_LEN);
 			
 	unsigned char* certificate_buffer = (unsigned char*)malloc(certificate_len+SIZE_OPCODE);
 	unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
@@ -109,7 +113,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 	X509_STORE* store = X509_STORE_new();
 	
 	FILE* CA_cert_file = fopen("./Certificates/CA_4Row_crl.pem","rb");
-	if(f==NULL){
+	if(CA_cert_file==NULL){
 		printf("Error during the opening of the CA certificate! \n");
 		exit(-1);
 	}
@@ -130,7 +134,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 		exit(-1);
 	 }
 	 
-	 crl=PEM_read_X509_CRL(CRL_FILE,NULL,NULL,NULL);
+	 crl=PEM_read_X509_CRL(CRL_file,NULL,NULL,NULL);
 	 if(crl==NULL){
 		printf("Error during the reading of the crl ! \n");
 		close(sock);
@@ -139,7 +143,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 	
 	fclose(CRL_file);
 	
-	int ret=X509_STORE_add_cert(store,cert);
+	int ret=X509_STORE_add_cert(store,CA_cert);
 	if(ret != 1){
 		printf("There was an error during the storing of the certificate ! \n");
 		close(sock);
@@ -204,7 +208,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress,const char* user){
 		exit(-1);
 	}
 	
-	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,addr_size);
+	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,size);
 	
 
 }
@@ -534,7 +538,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
     pos+=SIZE_OPCODE;
     memcpy(&rcv_seq_numb,buffer+pos,SIZE_OPCODE);
 
-    if(rcv_opcode != OPCODE_MALFORMED_MEX && rcv_opcode != OPCODE_CHALLENGE_TIMER_EXPIRED && rcv_opcode != OPCODE_CHALLENGE_REFUSED && rcv_opcode !=OPCODE_CHALLENGE_UNAVAILABLE && rcv_opcode != OPCODE_CHALLENGE_START){
+    if(rcv_opcode != OPCODE_MALFORMED_MEX  && rcv_opcode != OPCODE_CHALLENGE_REFUSED && rcv_opcode !=OPCODE_CHALLENGE_UNAVAILABLE && rcv_opcode != OPCODE_CHALLENGE_START){
 
         cout<<"After challenge reuqest, received an altered message !"<<endl;
 
@@ -733,7 +737,7 @@ int main() {
 
     inet_pton(AF_INET, ip_addr, &sv_addr_main.sin_addr);
 
-    login(sock,sv_addr_priv,user);
+    login(sock,&sv_addr_priv,user);
 
     while (1) {
         
