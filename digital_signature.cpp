@@ -9,14 +9,9 @@
 
 using namespace std;
 
-struct signature{
-	unsigned char* sign_buf;
-	long int len;
-};
+bool sendAndSignMsg(/*int socket,*/unsigned char* userName, unsigned char* msg_to_sign/*,struct sockaddr_in* address,int address_len*/){
 
-
-unsigned char* sendAndSignMsg(unsigned char* userName, unsigned char* msg_to_sign,struct signature* sign){
-
+ 
 	// used for return values
 	int ret; 
 
@@ -28,7 +23,7 @@ unsigned char* sendAndSignMsg(unsigned char* userName, unsigned char* msg_to_sig
 	FILE* prvkey_file = fopen(prvkey_file_name.c_str(), "r");
 	if(!prvkey_file){
 		cerr << "Error: cannot open file '" << prvkey_file_name << "' (missing?)\n"; 
-		pthred_exit(NULL); 
+		pthread_exit(NULL); 
 	}
 
 	EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, NULL);
@@ -76,19 +71,22 @@ unsigned char* sendAndSignMsg(unsigned char* userName, unsigned char* msg_to_sig
 		pthread_exit(NULL);
 	}
 
+	
 	//datastructure init
-   sign->sign_buf= sgnt_buf;
-   sign->len=sgnt_size;
-   // delete the digest and the private key from memory:
-   EVP_MD_CTX_free(md_ctx);
-   EVP_PKEY_free(prvkey);
-   BIO_dump_fp(stdout,(const char*)sgnt_buf, strlen((const char*)sgnt_buf)+1);
-   //BIO_dump_fp(stdout,(const char*)msg_to_sign, strlen((const char*)msg_to_sign)+1);
-    cout<<sgnt_size<<endl;
-   
+   /*sign->sign_buf= sgnt_buf;
+   sign->len=sgnt_size;*/
+
+	cout<<"EVP_PKEY: "<<EVP_PKEY_size(prvkey)<<endl;
+	cout<<"SIZE: "<<sgnt_size<<endl;
+
+	// delete the digest and the private key from memory:
+	EVP_MD_CTX_free(md_ctx);
+	EVP_PKEY_free(prvkey);
+	BIO_dump_fp(stdout,(const char*)sgnt_buf, strlen((const char*)sgnt_buf)+1);
+	
 
 }
-
+/*
 bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signature* sign){
    int ret; // used for return values
 
@@ -139,17 +137,17 @@ bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signatur
    EVP_PKEY_free(pubkey);
    EVP_MD_CTX_free(md_ctx);
    return true;
-}
+}*/
 
 int main() {
-	struct signature sign;
-	unsigned char name[]="dario";
+	//struct signature sign;
+	unsigned char name[]="raffa";
 	unsigned char msg[] ="Ciaosdfsdfsdfsdfsdfadsfasdfsdsda";
-	signMsg(name,msg,&sign);
+	sendAndSignMsg(name,msg/*,&sign*/);
 	//*sign.sign_buf='A';
-	if(verifySignMsg(name,msg,&sign))
+	/*if(verifySignMsg(name,msg,&sign))
 		cout<<"Firma autenticata con SUCCESSO"<<endl;
 	else
-		cout<<"Firma NON AUTENTICA"<<endl;
+		cout<<"Firma NON AUTENTICA"<<endl;*/
 	return 0;
 }
