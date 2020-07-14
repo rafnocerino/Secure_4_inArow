@@ -33,13 +33,13 @@ bool check_login(int socket,unsigned char* message, int messageLength,char* user
     if (actualOpcode != OPCODE_LOGIN) 
 		return false;
 
-    memcpy(&actualLength, message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
+    memcpy(&actualLength, message + SIZE_OPCODE, SIZE_LEN);
 
 
-    if (actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN))  
+    if (actualLength != messageLength - (SIZE_OPCODE  + SIZE_LEN))  
         return false;
 	
-	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
+	memcpy(username,message + SIZE_OPCODE + SIZE_LEN, messageLength - (SIZE_OPCODE + SIZE_LEN));
     return true;
 }
 

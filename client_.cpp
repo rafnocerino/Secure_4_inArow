@@ -112,7 +112,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
 	X509_CRL* crl=NULL;
 	X509_STORE* store = X509_STORE_new();
 	
-	FILE* CA_cert_file = fopen("./Certificates/CA_4Row_crl.pem","rb");
+	FILE* CA_cert_file = fopen("./Certificates/CA_4Row_cert.pem","rb");
 	if(CA_cert_file==NULL){
 		printf("Error during the opening of the CA certificate! \n");
 		exit(-1);
@@ -208,7 +208,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
 		exit(-1);
 	}
 	
-	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,size);
+	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,size,false);
 	
 
 }
@@ -743,14 +743,16 @@ int main() {
         
 		cout << "Inserisci un comando, per aiuto digita !help " << endl;
         
-		if( fgets(cmd,10,stdin) == NULL ){
+		/*if( fgets(cmd,10,stdin) == NULL ){
 		cout<<"Error during insertion of the command !"<<endl;
 		}
 	
 		char* p = strchr(user,'\n');
 		if(p){
 			*p='\0';
-		}
+		}*/
+		
+		cin >> cmd;
 
 
         if (strcmp(cmd, "!help") == 0) {

@@ -24,5 +24,5 @@ void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum
 void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size);
 void send_exit(int socket, unsigned char* buffer,char* username, uint8_t seqNum,sockaddr_in* sv_addr_priv,int addr_size);
 void send_login(int socket,unsigned char* buffer,char* username,uint8_t len,sockaddr_in* sv_addr_main,int addr_main);
-void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size);
+void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size,bool serverCall);
 void send_certificate_message(int socket,unsigned char* certificate,int certificateLen,struct sockaddr_in* address,int address_size);

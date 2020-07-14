@@ -35,6 +35,7 @@ using namespace std;
 #define SLEEP 20
 
 static const char serverCertificateFilePath[] = "../Certificates/Server_cert.pem";
+static const char serverUsername[] = "server";
 
 pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
@@ -251,7 +252,7 @@ void* serveClient(void *arg){
 				RAND_bytes(random_data,SIZE_RANDOM_DATA);
 				
 				// Invio il signature message:
-				send_signature_message(threadSocket,sendBuffer,random_data,username,certificateSize,&clientAddress,clientAddressLen);
+				send_signature_message(threadSocket,sendBuffer,random_data,(char*)serverUsername,certificateSize,&clientAddress,sizeof(clientAddress),true);
 				
 				//Mi metto in attesa per dare tempo al client di elaborare correttamente il primo messaggio:
 				sleep(1);
@@ -271,7 +272,10 @@ void* serveClient(void *arg){
 				//La prossima recive from avrà un timer:
 				int recived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE , 0, (struct sockaddr*)&clientAddress, &clientAddressLen);
 				
-				if(recived != SIZE_MESSAGE_SIGNATURE_MESSAGE){
+				printf("DEBUG: size signature message = %d.\n",SIZE_MESSAGE_SIGNATURE_MESSAGE);
+				printf("DEBUG: recived = %d.\n",recived);
+				
+				if(recived == SIZE_MESSAGE_SIGNATURE_MESSAGE){
 					
 					//Controllo la firma del messaggio:
 					if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,NULL)){
@@ -285,7 +289,7 @@ void* serveClient(void *arg){
 	
 				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
 					//if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress))){
-						
+						seqNum = 0;
 						uint8_t statusCode = STATUS_IDLE;
 						bool exitORerror = false;
 						unsigned char* ip = (unsigned char*)malloc(SIZE_IP_ADDRESS);

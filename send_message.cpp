@@ -21,7 +21,8 @@ using namespace std;
 
 #define BUF_SIZE 512
 
-void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size){
+void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size,bool serverCall){
+		
 		uint8_t opcodeMex = OPCODE_SIGNATURE_MESSAGE;
 		uint32_t sizeCertificateMex = sizeCertificate;
 		
@@ -32,13 +33,13 @@ void send_signature_message(int socket,unsigned char* buffer,unsigned char* rand
 		memcpy(buffer,&opcodeMex,SIZE_OPCODE);
 		pos = pos + SIZE_OPCODE;
 		
-		memcpy(buffer,&sizeCertificateMex,SIZE_CERTIFICATE_LEN);
+		memcpy(buffer + pos,&sizeCertificateMex,SIZE_CERTIFICATE_LEN);
 		pos = pos + SIZE_CERTIFICATE_LEN;
 		
-		memcpy(buffer,random_data,SIZE_RANDOM_DATA);
+		memcpy(buffer + pos,random_data,SIZE_RANDOM_DATA);
 		pos = pos + SIZE_RANDOM_DATA;
 		
-		if(!sendAndSignMsg(socket,username,buffer,pos,address,address_size)){
+		if(!sendAndSignMsg(socket,username,buffer,pos,address,address_size,serverCall)){
 			perror("Errore: impossibile inviare il messaggio correttamente firmato.\n");
 			close(socket);
 			pthread_exit(NULL);
@@ -55,7 +56,7 @@ void send_certificate_message(int socket,unsigned char* certificate,int certific
 	memcpy(bufferCertificateMessage,&opcodeMex,SIZE_OPCODE);
 	memcpy(bufferCertificateMessage + SIZE_OPCODE,certificate,certificateLen);
 	
-	ret = sendto(socket,bufferCertificateMessage,SIZE_OPCODE + certificateLen,0,(struct sockaddr*)address,address_size); 
+	ret = sendto(socket,bufferCertificateMessage,SIZE_OPCODE + certificateLen,0,(struct sockaddr*)address,sizeof(*address)); 
 	
 	free(bufferCertificateMessage);
 	

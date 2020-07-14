@@ -7,6 +7,9 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "digital_signature.h"
 #include "protocol_constant.h"
 
@@ -14,12 +17,12 @@
 #include <sys/socket.h>
 using namespace std;
 
-bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len){
+bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall){
 
 	// used for return values
 	int ret; 
 
-	string prvkey_file_name="./private keys/";
+	string prvkey_file_name = serverCall == true ? "../private keys/" : "./private keys/";
 	prvkey_file_name+=reinterpret_cast<const char*>(userName);
 	prvkey_file_name+="_prv.pem";
 
@@ -30,7 +33,7 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 		return false;
 	}
 
-	EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, NULL);
+	EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, userName);
 	fclose(prvkey_file);
 	if(!prvkey){
 		cerr << "Error: PEM_read_PrivateKey returned NULL\n";
@@ -80,12 +83,18 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	EVP_PKEY_free(prvkey);
 	
 	// Fase di invio del messaggio firmato all'utente
+	
+	cout<<"DEBUG: invio del messaggio firmato."<<endl;
+	
 	unsigned char* sendBuffer = (unsigned char*)malloc(messageLen + sgnt_size);
 	memset(sendBuffer,0,messageLen + sgnt_size);
 	memcpy(sendBuffer,msg_to_sign,messageLen);
 	memcpy(sendBuffer + messageLen,sgnt_buf,sgnt_size);
-
-	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0, (struct sockaddr*)address, address_len);
+	
+	cout<<"DEBUG: Indirizzo ="<<inet_ntoa(address->sin_addr)<<endl;
+	cout<<"DEBUG: Lunghezza Indirizzo = "<<address_len<<endl;
+	
+	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
 
 	free(sendBuffer);
 	
@@ -102,9 +111,9 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
    
    if(pubkey == NULL){
 		// read the peer's public key file from keyboard:
-		string pubkey_file_name="./public keys/";
+		string pubkey_file_name ="../public keys/";
 		pubkey_file_name+=reinterpret_cast<const char*>(userName);
-		pubkey_file_name+=".pem";
+		pubkey_file_name+="_public.pem";
 
 		// load the peer's public key:
 		FILE* pubkey_file = fopen(pubkey_file_name.c_str(), "r");
