@@ -20,7 +20,6 @@
 
 using namespace std;
 
-
 uint8_t seq_numb;
 
 #define BUF_SIZE 512
@@ -473,6 +472,10 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         int len_list=0;
         int total_len=0;
         char* result = (char*)malloc(255);
+		if(!result){
+			cout<<"There was an error during the allocation of the memory for the available user list! " <<endl;
+		}
+		
         int result_size=0;
         char* temp;
         while(true){
@@ -569,9 +572,23 @@ int main() {
     char*  available_users;
     int avail_len;
 	char* user = (char*) malloc(255);
-
+	
+	if(!user){
+		cout<<"There was an error during the allocation of the buffer for the username! "<<endl;
+		exit(-1);
+	}
+	
 	cout << "Inserisci nome utente:" << endl;
-	cin >> user;
+	
+	if( fgets(user,255,stdin) == NULL ){
+		cout<<"Error during insertion of the username !"<<endl;
+		exit(-1);
+	}
+	
+	char* p = strchr(user,'\n');
+	if(p){
+		*p='\0';
+	}
 
     
 
@@ -584,31 +601,19 @@ int main() {
 
     login(sock,sv_addr_priv,user);
 
-    // temp code
-    /*unsigned char buffer[BUF_SIZE];
-    
-    memset(buffer, 0, BUF_SIZE);
-    uint8_t opcode = 99;
-    memcpy(buffer,&opcode,sizeof(opcode));
-
-
-    int ret = sendto(sock,&opcode,1,0,(struct sockaddr*)&sv_addr_main,sizeof(sv_addr_main));
-    if ( ret < 0){
-
-        perror("Errore nell'invio \n");
-		exit(-1);
-    }
-
-    socklen_t size ;
-    int pos = 0;
-    memset(buffer, 0, BUF_SIZE);
-    int received = recvfrom(sock, buffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)&sv_addr_priv, &size);
-
-    // end temp
-*/
     while (1) {
-        cout << "Inserisci un comando, per aiuto digita !help " << endl;
-        cin >> cmd;
+        
+		cout << "Inserisci un comando, per aiuto digita !help " << endl;
+        
+		if( fgets(cmd,10,stdin) == NULL ){
+		cout<<"Error during insertion of the command !"<<endl;
+		}
+	
+		char* p = strchr(user,'\n');
+		if(p){
+			*p='\0';
+		}
+
 
         if (strcmp(cmd, "!help") == 0) {
             cout << "The available commands are: " << endl;
