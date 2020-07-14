@@ -35,6 +35,9 @@ void send_signature_message(int socket,unsigned char* buffer,unsigned char* rand
 		memcpy(buffer,&sizeCertificateMex,SIZE_CERTIFICATE_LEN);
 		pos = pos + SIZE_CERTIFICATE_LEN;
 		
+		memcpy(buffer,random_data,SIZE_RANDOM_DATA);
+		pos = pos + SIZE_RANDOM_DATA;
+		
 		if(!sendAndSignMsg(socket,username,buffer,pos,address,address_size)){
 			perror("Errore: impossibile inviare il messaggio correttamente firmato.\n");
 			close(socket);
