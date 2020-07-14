@@ -12,7 +12,7 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb);
 bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb) ;
 bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,char* challenging_user, int& challenge_id, uint8_t& rcv_seq_numb, char* challengedUser);
-bool check_login(int socket,unsigned char* message, int messageLength,uint8_t& seqNum,char* username);
+bool check_login(int socket,unsigned char* message, int messageLength,char* username);
 bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t& statusCode,char* username); 
 bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username);
 bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber);

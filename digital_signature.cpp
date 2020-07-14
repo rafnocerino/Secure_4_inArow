@@ -1,5 +1,6 @@
 #include <iostream> 
 #include <string>
+#include <pthread.h>
 #include <stdio.h> // for fopen(), etc.
 #include <limits.h> // for INT_MAX
 #include <string.h> // for memset()
@@ -14,41 +15,68 @@ struct signature{
 };
 
 
-unsigned char* signMsg(unsigned char* userName, unsigned char* msg_to_sign,struct signature* sign){
+unsigned char* sendAndSignMsg(unsigned char* userName, unsigned char* msg_to_sign,struct signature* sign){
 
-   int ret; // used for return values
+	// used for return values
+	int ret; 
 
-   // read my private key file from keyboard:
-   string prvkey_file_name="prvkey";
-   prvkey_file_name+=reinterpret_cast<const char*>(userName);
-   prvkey_file_name+=".pem";
+	string prvkey_file_name="./private keys/";
+	prvkey_file_name+=reinterpret_cast<const char*>(userName);
+	prvkey_file_name+="_prv.pem";
 
-   // load my private key:
-   FILE* prvkey_file = fopen(prvkey_file_name.c_str(), "r");
-   if(!prvkey_file){ cerr << "Error: cannot open file '" << prvkey_file_name << "' (missing?)\n"; exit(1); }
-   EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, NULL);
-   fclose(prvkey_file);
-   if(!prvkey){ cerr << "Error: PEM_read_PrivateKey returned NULL\n"; exit(1); }
+	// load my private key:
+	FILE* prvkey_file = fopen(prvkey_file_name.c_str(), "r");
+	if(!prvkey_file){
+		cerr << "Error: cannot open file '" << prvkey_file_name << "' (missing?)\n"; 
+		pthred_exit(NULL); 
+	}
 
-   // 
+	EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, NULL);
+	fclose(prvkey_file);
+	if(!prvkey){
+		cerr << "Error: PEM_read_PrivateKey returned NULL\n";
+		pthread_exit(NULL); 
+	}
+ 
    const EVP_MD* md = EVP_sha256();
    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
-   if(!md_ctx){ cerr << "Error: EVP_MD_CTX_new returned NULL\n"; exit(1); }
-   // allocate buffer for signature:
-   unsigned char* sgnt_buf = (unsigned char*)malloc(EVP_PKEY_size(prvkey));
-   if(!sgnt_buf) { cerr << "Error: malloc returned NULL (signature too big?)\n"; exit(1); }
+   if(!md_ctx){
+		cerr << "Error: EVP_MD_CTX_new returned NULL\n";
+		pthread_exit(NULL); 
+	}
+
+	// allocate buffer for signature:
+	unsigned char* sgnt_buf = (unsigned char*)malloc(EVP_PKEY_size(prvkey));
+	if(!sgnt_buf){
+		cerr << "Error: malloc returned NULL (signature too big?)\n";
+		pthread_exit(NULL); 
+	}
    
-   // sign the plaintext:
-   // (perform a single update on the whole plaintext, 
-   // assuming that the plaintext is not huge)
-   ret = EVP_SignInit(md_ctx, md);
-   if(ret == 0){ cerr << "Error: EVP_SignInit returned " << ret << "\n"; exit(1); }
-   ret = EVP_SignUpdate(md_ctx, msg_to_sign, strlen((const char*)msg_to_sign));
-   if(ret == 0){ cerr << "Error: EVP_SignUpdate returned " << ret << "\n"; exit(1); }
-   unsigned int sgnt_size;
-   ret = EVP_SignFinal(md_ctx, sgnt_buf, &sgnt_size, prvkey);
-   if(ret == 0){ cerr << "Error: EVP_SignFinal returned " << ret << "\n"; exit(1); }
-   //datastructure init
+	// sign the plaintext:
+	// (perform a single update on the whole plaintext, 
+	// assuming that the plaintext is not huge)
+	ret = EVP_SignInit(md_ctx, md);
+
+	if(ret == 0){
+		cerr << "Error: EVP_SignInit returned " << ret << "\n";
+		pthread_exit(NULL);
+	}
+
+	ret = EVP_SignUpdate(md_ctx, msg_to_sign, strlen((const char*)msg_to_sign));
+	if(ret == 0){
+		cerr << "Error: EVP_SignUpdate returned " << ret << "\n";
+		pthread_exit(NULL);
+	}
+
+	unsigned int sgnt_size;
+	ret = EVP_SignFinal(md_ctx, sgnt_buf, &sgnt_size, prvkey);
+
+	if(ret == 0){
+		cerr << "Error: EVP_SignFinal returned " << ret << "\n";
+		pthread_exit(NULL);
+	}
+
+	//datastructure init
    sign->sign_buf= sgnt_buf;
    sign->len=sgnt_size;
    // delete the digest and the private key from memory:
@@ -65,7 +93,7 @@ bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signatur
    int ret; // used for return values
 
    // read the peer's public key file from keyboard:
-   string pubkey_file_name="pubkey";
+   string pubkey_file_name="./public keys/";
    pubkey_file_name+=reinterpret_cast<const char*>(userName);
    pubkey_file_name+=".pem";
 
@@ -115,7 +143,7 @@ bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signatur
 
 int main() {
 	struct signature sign;
-	unsigned char name[]="A";
+	unsigned char name[]="dario";
 	unsigned char msg[] ="Ciaosdfsdfsdfsdfsdfadsfasdfsdsda";
 	signMsg(name,msg,&sign);
 	//*sign.sign_buf='A';

@@ -18,11 +18,11 @@ using namespace std;
 
 
 
-bool check_login(int socket,unsigned char* message, int messageLength,uint8_t& seqNum,char* username) {
+bool check_login(int socket,unsigned char* message, int messageLength,char* username) {
    
 	uint8_t actualOpcode;
     uint8_t actualLength;
-    uint8_t seq;
+
     memcpy(&actualOpcode, message, SIZE_OPCODE);
     
     if (actualOpcode == OPCODE_MALFORMED_MEX) {
@@ -33,16 +33,12 @@ bool check_login(int socket,unsigned char* message, int messageLength,uint8_t& s
     if (actualOpcode != OPCODE_LOGIN) 
 		return false;
 
-	memcpy(&seq, message + SIZE_OPCODE, SIZE_SEQNUMBER);
-    seqNum=seq;	
-
     memcpy(&actualLength, message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
-	
-	//printf("->messagelength: %d\n",messageLength);
-	//printf("->actualLength: %d\n",actualLength);
 
-    if (actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN))  // L'uno in più è per il carattere di terminazione della stringa
+
+    if (actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN))  
         return false;
+	
 	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
     return true;
 }

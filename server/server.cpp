@@ -197,7 +197,7 @@ void* serveClient(void *arg){
 	if(bind(threadSocket,(struct sockaddr*)&threadSockAddr,sizeof(threadSockAddr)) < 0){
 		printf("ERRORE: e' stato riscontrato un errore nella fase di bind del socket per comunicare con il server.\n");
 	}else{
-		if(check_login(threadSocket,loginMessage,sizeMessageReceived,seqNum,username)){
+		if(check_login(threadSocket,loginMessage,sizeMessageReceived,username)){
 			printf("Il messaggio di login ricevuto e' corretto.\n");
 			printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
 			printf("USERNAME. RICEVUTO: %s.\n",username);

@@ -309,3 +309,24 @@ void send_exit(int socket, unsigned char* buffer,char* username, uint8_t seqNum,
 	}
 
 }
+
+void send_login(int socket,unsigned char* buffer,char* username,uint8_t len,sockaddr_in* sv_addr_main,int addr_main){
+	uint8_t opcode = OPCODE_LOGIN;
+	uint8_t lenMex = len;
+	int pos = 0;	
+
+	memcpy(buffer,&opcode,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+	
+	memcpy(buffer + pos,&lenMex,SIZE_LEN);
+	pos += SIZE_LEN;
+
+	memcpy(buffer + pos,username,len);
+	pos += len;
+	
+	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)sv_addr_main,addr_main);	
+
+	if(ret < pos){
+		perror("Errore: impossibile inviare il messaggio di login.\n");
+	}
+}
