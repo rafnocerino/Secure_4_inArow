@@ -16,7 +16,7 @@
 //Lunghezze in byte di tutti i messaggi
 const unsigned int SIZE_MESSAGE_LOGIN = SIZE_OPCODE + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_SIGNATURE_MESSAGE = SIZE_OPCODE + SIZE_CERTIFICATE_LEN + SIZE_RANDOM_DATA + SIZE_SIGNATURE;
-const unsigned int SIZE_MESSAGE_CERTIFICATE = SIZE_OPCODE + pow(2,8*SIZE_CERTIFICATE_LEN);
+const unsigned long int SIZE_MESSAGE_CERTIFICATE = SIZE_OPCODE + pow(2,8*SIZE_CERTIFICATE_LEN);
 const unsigned int SIZE_MESSAGE_AVAILABLE_USER_LIST = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LAST_FLAG + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_CHALLENGE_REQUEST = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_CHALLENGE_ACCEPTED = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER;
@@ -50,3 +50,5 @@ const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
 #define OPCODE_EXIT 12
 #define OPCODE_MALFORMED_MEX 13 
 /*----------------------------------------------------------------------------------------------------------------------*/
+
+#define WAIT_TIME_LOGIN 30

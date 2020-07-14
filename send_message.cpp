@@ -15,31 +15,55 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "digital_signature.h"
 #include "protocol_constant.h"
 using namespace std;
 
 #define BUF_SIZE 512
 
-void send_loginOK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size){
-    int pos = 0;
-    int ret;
-    uint8_t seqNumMex = htons(seq_numb);
-    uint8_t opcodeMex = htons(op_code);
-    memset(buffer, 0, BUF_SIZE);
-    memcpy(buffer, &opcodeMex, SIZE_OPCODE);
-    pos += SIZE_OPCODE;
-    memcpy(buffer + pos, &seqNumMex, SIZE_SEQNUMBER);
-    pos += SIZE_SEQNUMBER;
-
-    ret = sendto(socket, buffer, SIZE_MESSAGE_LOGIN_OK, 0, (struct sockaddr*)sv_addr, addr_size);
-    if (ret < (int)SIZE_MESSAGE_LOGIN_OK) {
-        perror("There was an error during the sending of the loginOK message \n");
-        exit(-1);
-    }	
+void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size){
+		uint8_t opcodeMex = OPCODE_SIGNATURE_MESSAGE;
+		uint32_t sizeCertificateMex = sizeCertificate;
+		
+		int pos = 0;
+		
+		//Pulisco il buffer per l'invio
+		memset(buffer, 0, BUF_SIZE);
+		memcpy(buffer,&opcodeMex,SIZE_OPCODE);
+		pos = pos + SIZE_OPCODE;
+		
+		memcpy(buffer,&sizeCertificateMex,SIZE_CERTIFICATE_LEN);
+		pos = pos + SIZE_CERTIFICATE_LEN;
+		
+		if(!sendAndSignMsg(socket,username,buffer,pos,address,address_size)){
+			perror("Errore: impossibile inviare il messaggio correttamente firmato.\n");
+			close(socket);
+			pthread_exit(NULL);
+		}	
 }
 
-void send_challengeRequest(int socket, struct sockaddr_in* sv_addr, int addr_size, unsigned char* buffer, const char* challenger, char* challenged,
-                           uint8_t seq_numb, int challenge_id) {
+void send_certificate_message(int socket,unsigned char* certificate,int certificateLen,struct sockaddr_in* address,int address_size){
+	
+	unsigned char *bufferCertificateMessage = (unsigned char*)malloc(SIZE_OPCODE + certificateLen);
+	uint8_t opcodeMex = OPCODE_CERTIFICATE;
+	int ret = 0;
+	
+	memset(bufferCertificateMessage,0,SIZE_OPCODE + certificateLen);
+	memcpy(bufferCertificateMessage,&opcodeMex,SIZE_OPCODE);
+	memcpy(bufferCertificateMessage + SIZE_OPCODE,certificate,certificateLen);
+	
+	ret = sendto(socket,bufferCertificateMessage,SIZE_OPCODE + certificateLen,0,(struct sockaddr*)address,address_size); 
+	
+	free(bufferCertificateMessage);
+	
+	if(ret < SIZE_OPCODE + certificateLen){
+		perror("Errore: impossibile inviare il messaggio contente il certificato.\n"); 
+		close(socket);
+		pthread_exit(NULL);
+	}
+}
+
+void send_challengeRequest(int socket, struct sockaddr_in* sv_addr, int addr_size, unsigned char* buffer, const char* challenger, char* challenged,uint8_t seq_numb, int challenge_id) {
     uint8_t op_code = OPCODE_CHALLENGE_REQUEST;
     uint8_t seq = seq_numb;
     int id = challenge_id;
@@ -68,7 +92,8 @@ void send_challengeRequest(int socket, struct sockaddr_in* sv_addr, int addr_siz
     int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr, addr_size);
     if (ret < pos) {
         perror("There was an error during the sending of the challenge request ! \n");
-        exit(-1);
+        close(socket);
+        pthread_exit(NULL);
     }
 }
 
@@ -89,7 +114,7 @@ void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, 
     int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr_challenge, addr_size);
     if (ret < SIZE_MESSAGE_CHALLENGE_REFUSED) {
         perror("There was an error during the sending of the malformed msg ! \n");
-        exit(-1);
+        pthread_exit(NULL);
     }
 }
 
@@ -111,7 +136,7 @@ void send_challengeAccepted(int socket, unsigned char* buffer, uint8_t op_code, 
     int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr_challenging, addr_size);
     if (ret < SIZE_MESSAGE_CHALLENGE_ACCEPTED) {
         perror("There was an error during the sending of the challenge accepted msg ! \n");
-        exit(-1);
+        pthread_exit(NULL);
     }
 }
 
@@ -129,12 +154,12 @@ void send_malformedMsg(int socket, unsigned char* buffer, uint8_t op_code, uint8
 
     int ret = sendto(socket, buffer, SIZE_MESSAGE_MALFORMED_MEX, 0, (struct sockaddr*)sv_addr, addr_size);
 
+	close(socket);
+
     if (ret < (int)SIZE_MESSAGE_MALFORMED_MEX) {
         perror("There was an error during the sending of the malformed msg ! \n");
-        // exit(-1);
+        pthread_exit(NULL);
     }
-    close(socket);
-    // exit(-1);
 }
 
 void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_numb, sockaddr_in* sv_addr, int addr_size) {
@@ -156,7 +181,8 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
 
     if (ret < (int)SIZE_MESSAGE_ACK) {
         perror("There was an error during the sending of the ACK \n");
-        exit(-1);
+        close(socket);
+        pthread_exit(NULL);
     }
 }
 
@@ -184,23 +210,9 @@ void send_UpdateStatus(int socket, unsigned char* buffer,const char* username, u
     int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr, addr_size);
     if (ret < pos) {
         perror("There was an error during the sending of the update status msg \n");
-        exit(-1);
+        close(socket);
+        pthread_exit(NULL);
     }
-}
-
-void send_challengeTimerExpired(int socket,unsigned char* buffer,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
-	uint8_t opcode = OPCODE_CHALLENGE_TIMER_EXPIRED;
-	uint8_t seqNumMex = seqNum;	
-	
-	memset(buffer,0,BUF_SIZE);
-	memcpy(buffer,&opcode,SIZE_OPCODE);
-	memcpy(buffer + SIZE_OPCODE,&seqNumMex,SIZE_SEQNUMBER);
-	
-	int ret = sendto(socket,buffer,SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED,0,(struct sockaddr*)client_addr,addr_size);
-
-	if(ret < SIZE_OPCODE + SIZE_SEQNUMBER){
-		perror("There was an error during the sending of the ACK \n");
-	}
 }
 
 void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size){
@@ -231,6 +243,8 @@ void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_nu
 	int ret = sendto(socket,buffer,pos,0,(struct sockaddr*)client_addr, sizeof(*client_addr));
 	if(ret < pos){
 		perror("There was an error during the sending of the chunk.\n");
+		close(socket);
+		pthread_exit(NULL);
 	}
 }
 
@@ -252,7 +266,8 @@ void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum
 	ret = sendto(socket,buffer,SIZE_MESSAGE_CHALLENGE_UNAVAILABLE,0,(struct sockaddr*)clientAddress,clientAddressLen);
 	if(ret < (int)SIZE_MESSAGE_CHALLENGE_UNAVAILABLE){
 		perror("There was an error during the sending of the sending of the challenge unavailable message. \n");
-		exit(-1);
+		close(socket);
+		pthread_exit(NULL);
 	}	
 }
 
@@ -282,6 +297,8 @@ void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_
 
 	if(ret < pos){
 		perror("Errore: impossibile inviare il messaggio di challenge start.\n");
+		close(socket);
+		pthread_exit(NULL);
 	}
 }
 
@@ -306,6 +323,8 @@ void send_exit(int socket, unsigned char* buffer,char* username, uint8_t seqNum,
 
 	if(ret < pos){
 		perror("Errore: impossibile inviare il messaggio di exit.\n");
+		close(socket);
+		pthread_exit(NULL);
 	}
 
 }
@@ -328,5 +347,7 @@ void send_login(int socket,unsigned char* buffer,char* username,uint8_t len,sock
 
 	if(ret < pos){
 		perror("Errore: impossibile inviare il messaggio di login.\n");
+		close(socket);
+		pthread_exit(NULL);
 	}
 }

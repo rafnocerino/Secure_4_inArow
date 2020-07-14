@@ -195,41 +195,6 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
     return true;
 }
 
-bool check_challengeTimerExpired(int socket,unsigned char* buffer,int messageLenght,uint8_t exp_seq_numb){
-    uint8_t rcv_opcode;
-    uint8_t rcv_seq_numb;
-    int pos = 0;
-
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
-    pos += SIZE_OPCODE;
-    
-	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
-        close(socket);
-        pthread_exit(NULL);
-    }
-
-	if(rcv_opcode != OPCODE_CHALLENGE_TIMER_EXPIRED){
-		return false;
-	}
-
-    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
-    pos += SIZE_SEQNUMBER;
-    
-	printf("OPCODE-> %u.\n",rcv_opcode);
-	printf("EX. S.N. = %u | RC. S.N. = %u.\n",exp_seq_numb,rcv_seq_numb);	
-	printf("Message Lenght = %d.\n",messageLenght);	
-
-
-
-    if ((exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_TIMER_EXPIRED)) {
-        return false;
-    }
-
-    return true;
-
-}
-
-
 bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,unsigned char* ip,unsigned char* adv_pubkey){
 
     uint8_t rcv_opcode;
@@ -453,4 +418,21 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
     
 
     return true;
+}
+
+bool check_signature_message_server(unsigned char* buffer,int messageLength,unsigned char* expectedRandomData){
+	uint8_t opcodeMex = 0;
+	int clearMessageSize = messageLength - SIZE_SIGNATURE;
+	unsigned char* randomDataMex = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+	memset(randomDataMex,0,SIZE_SIGNATURE);
+	memcpy(&opcodeMex,buffer,SIZE_OPCODE);
+	if(opcodeMex != OPCODE_SIGNATURE_MESSAGE){
+		return false;
+	}
+	memcpy(randomDataMex,buffer + SIZE_OPCODE + SIZE_CERTIFICATE_LEN, SIZE_RANDOM_DATA);
+	if(memcmp(expectedRandomData,randomDataMex,SIZE_RANDOM_DATA) != 0){
+		return false;
+	}
+	free(randomDataMex);
+	return true;
 }

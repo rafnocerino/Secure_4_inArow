@@ -21,8 +21,6 @@
 #include <unistd.h>
 #endif
 
-
-//#include "../protocol_constant.h"
 #include "../check_message.h"
 #include "../send_message.h"
 #include "../digital_signature.h"
@@ -35,6 +33,8 @@ using namespace std;
 #define MAX_REQUEST 50
 #define BUF_SIZE 512
 #define SLEEP 20
+
+static const char serverCertificateFilePath[] = "../Certificates/Server_cert.pem";
 
 pthread_mutex_t lockIndexesAvailableTID = PTHREAD_MUTEX_INITIALIZER; //[06]
 sem_t indexesSem;
@@ -170,6 +170,40 @@ bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seq
 	return true;
 }
 
+bool privateKeyExist(string fileName){
+	string filePath = "./private keys/" + fileName + "_prv.pem";
+	FILE *tofind;
+	if ((tofind = fopen(filePath.c_str(), "r")))
+    {
+        fclose(tofind);
+        return true;
+    }
+    return false;
+}
+
+unsigned char* readFileBytes(const char *name)  {  
+    FILE *fl = fopen(name, "rb");  
+    fseek(fl, 0, SEEK_END);  
+    long len = ftell(fl);  
+    unsigned char* ret = (unsigned char*)malloc(len);  
+    fseek(fl, 0, SEEK_SET);  
+    fread(ret, 1, len, fl);  
+    fclose(fl);  
+	return ret;  
+}  
+
+unsigned char* readFileBytes(const char *name,int &sizeFile){  
+    FILE *fl = fopen(name, "rb");  
+    fseek(fl, 0, SEEK_END);  
+    sizeFile = ftell(fl);  
+    unsigned char* ret = (unsigned char*)malloc(sizeFile);  
+    fseek(fl, 0, SEEK_SET);  
+    fread(ret, 1, sizeFile, fl);  
+    fclose(fl);  
+    return ret;  
+}  
+
+
 void* serveClient(void *arg){
 	unsigned int sizeMessageReceived = ((struct request*)arg)->sizeMessageReceived;
 	unsigned char* loginMessage;
@@ -202,9 +236,51 @@ void* serveClient(void *arg){
 			printf("Il messaggio di login ricevuto e' corretto.\n");
 			printf("USERNAME. RICEVUTO: %s.\n",username);
 			memset(sendBuffer, 0, BUF_SIZE);
-			//send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
-			if(addNewUserDataStructure(username,clientAddress)){
-				//seqNum = seqNum + 1;
+			
+			// Controllo che l'utente abbia un file contente la chiave pubblica associato:
+			if(privateKeyExist && addNewUserDataStructure(username,clientAddress)){
+				
+				// Leggo il file del certificato: 
+				int certificateSize = 0;
+				unsigned char* certificate = readFileBytes(serverCertificateFilePath,certificateSize);
+				printf("DEBUG: certificate size=%d\n",certificateSize);
+				
+				//Generazione dei byte randomici da firmare:
+				unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+				RAND_poll();
+				RAND_bytes(random_data,SIZE_RANDOM_DATA);
+				
+				// Invio il signature message:
+				send_signature_message(threadSocket,sendBuffer,random_data,username,certificateSize,&clientAddress,clientAddressLen);
+				
+				//Mi metto in attesa per dare tempo al client di elaborare correttamente il primo messaggio:
+				sleep(1);
+				
+				//Invio del messaggio contente il certificato:
+				send_certificate_message(threadSocket,certificate,certificateSize,&clientAddress,clientAddressLen);
+				
+				free(certificate);
+				
+				//Mi metto in attesa del messaggio firmato da parte del client:
+				memset(sendBuffer,0,BUF_SIZE);
+				struct timeval time;
+				time.tv_sec = WAIT_TIME_LOGIN;
+				time.tv_usec = 0;
+				
+				setsockopt(threadSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
+				//La prossima recive from avrà un timer:
+				int recived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE , 0, (struct sockaddr*)&clientAddress, &clientAddressLen);
+				
+				if(recived != SIZE_MESSAGE_SIGNATURE_MESSAGE){
+					
+					//Controllo la firma del messaggio:
+					if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE)){
+						
+						//Controllo della struttura del messaggio firmato:
+						if(check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){
+							
+							printf("Il messaggio ricevuto indietro e' correttamente firmato.\n");
+				
 				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
 	
 				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
@@ -425,12 +501,26 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 					}
 					//Se si esce dal ciclo in ogni caso va rimosso l'utente dalla struttura dati
 					removeUserDataStructure(username);
-					close(threadSocket);
+				}else{
+					printf("Errore: il signature message ha un formato scorretto.\n");
+				}
+					
+					}else{
+							printf("Errore: il controllo sulla firma del messaggio e' scorretto.\n");
+					}
+				}else{
+					printf("Errore: impossibile riceve il messaggio firmato dal client in risposta.\n");
+				}	
+		}else{
+			printf("Errore: l'utente richiesto non e' uno degli utenti registrati o non e' stato possibile andarlo ad aggiungere alla struttura dati.\n");
 		}
 	}else{
 		printf("Errore: il messaggio di login ricevuto ha un formato errato\n");
 	}
+	close(threadSocket);
 }
+
+
 
 /*
 					}else{

@@ -6,11 +6,15 @@
 #include <string.h> // for memset()
 #include <openssl/evp.h>
 #include <openssl/pem.h>
-#include "digital_signature.h"
 
+#include "digital_signature.h"
+#include "protocol_constant.h"
+
+#include <sys/types.h>
+#include <sys/socket.h>
 using namespace std;
 
-bool sendAndSignMsg(int socket,unsigned char* userName, unsigned char* msg_to_sign,struct sockaddr_in* address,int address_len){
+bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len){
 
 	// used for return values
 	int ret; 
@@ -23,28 +27,28 @@ bool sendAndSignMsg(int socket,unsigned char* userName, unsigned char* msg_to_si
 	FILE* prvkey_file = fopen(prvkey_file_name.c_str(), "r");
 	if(!prvkey_file){
 		cerr << "Error: cannot open file '" << prvkey_file_name << "' (missing?)\n"; 
-		pthread_exit(NULL); 
+		return false;
 	}
 
 	EVP_PKEY* prvkey = PEM_read_PrivateKey(prvkey_file, NULL, NULL, NULL);
 	fclose(prvkey_file);
 	if(!prvkey){
 		cerr << "Error: PEM_read_PrivateKey returned NULL\n";
-		pthread_exit(NULL); 
+		return false; 
 	}
  
    const EVP_MD* md = EVP_sha256();
    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
    if(!md_ctx){
 		cerr << "Error: EVP_MD_CTX_new returned NULL\n";
-		pthread_exit(NULL); 
+		return false; 
 	}
 
 	// allocate buffer for signature:
 	unsigned char* sgnt_buf = (unsigned char*)malloc(EVP_PKEY_size(prvkey));
 	if(!sgnt_buf){
 		cerr << "Error: malloc returned NULL (signature too big?)\n";
-		pthread_exit(NULL); 
+		return false; 
 	}
    
 	// sign the plaintext:
@@ -54,13 +58,13 @@ bool sendAndSignMsg(int socket,unsigned char* userName, unsigned char* msg_to_si
 
 	if(ret == 0){
 		cerr << "Error: EVP_SignInit returned " << ret << "\n";
-		pthread_exit(NULL);
+		return false;
 	}
 
-	ret = EVP_SignUpdate(md_ctx, msg_to_sign, strlen((const char*)msg_to_sign));
+	ret = EVP_SignUpdate(md_ctx,msg_to_sign,messageLen);
 	if(ret == 0){
 		cerr << "Error: EVP_SignUpdate returned " << ret << "\n";
-		pthread_exit(NULL);
+		return false;
 	}
 
 	unsigned int sgnt_size;
@@ -68,26 +72,32 @@ bool sendAndSignMsg(int socket,unsigned char* userName, unsigned char* msg_to_si
 
 	if(ret == 0){
 		cerr << "Error: EVP_SignFinal returned " << ret << "\n";
-		pthread_exit(NULL);
+		return false;
 	}
-
 	
-	//datastructure init
-   /*sign->sign_buf= sgnt_buf;
-   sign->len=sgnt_size;*/
-
-	cout<<"EVP_PKEY: "<<EVP_PKEY_size(prvkey)<<endl;
-	cout<<"SIZE: "<<sgnt_size<<endl;
-
 	// delete the digest and the private key from memory:
 	EVP_MD_CTX_free(md_ctx);
 	EVP_PKEY_free(prvkey);
-	BIO_dump_fp(stdout,(const char*)sgnt_buf, strlen((const char*)sgnt_buf)+1);
 	
+	// Fase di invio del messaggio firmato all'utente
+	unsigned char* sendBuffer = (unsigned char*)malloc(messageLen + sgnt_size);
+	memset(sendBuffer,0,messageLen + sgnt_size);
+	memcpy(sendBuffer,msg_to_sign,messageLen);
+	memcpy(sendBuffer + messageLen,sgnt_buf,sgnt_size);
 
+	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0, (struct sockaddr*)address, address_len);
+
+	free(sendBuffer);
+	
+	if(ret < messageLen + sgnt_size){
+		perror("Errore: impossibile inviare il messaggio signature_message.\n");
+		return false;
+	}
+	
+	return true;
 }
-/*
-bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signature* sign){
+
+bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength){
    int ret; // used for return values
 
    // read the peer's public key file from keyboard:
@@ -101,28 +111,39 @@ bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signatur
    EVP_PKEY* pubkey = PEM_read_PUBKEY(pubkey_file, NULL, NULL, NULL);
    fclose(pubkey_file);
    if(!pubkey){ cerr << "Error: PEM_read_PUBKEY returned NULL\n"; exit(1); }
-
-   unsigned char* clear_buf = text;
-   unsigned char* sgnt_buf = sign->sign_buf;
-   long int clear_size=strlen((const char*)clear_buf);
-   long int sgnt_size=sign->len;
-   cout<<"Autenticazione"<<endl;
-   cout<<clear_buf<<endl;
-   cout<<sgnt_buf<<endl;
-   cout<<clear_size<<endl;
-   cout<<sgnt_size<<endl;
+	
+	long int clear_size = messageLength - SIZE_SIGNATURE;
+	
+	unsigned char* clear_buf;
+	clear_buf = (unsigned char*)malloc(clear_size);
+	memset(clear_buf,0,clear_size);
+	memcpy(clear_buf,msg_signed,clear_size);
+	
+	long int sgnt_size = SIZE_SIGNATURE;
+   
+	unsigned char* sgnt_buf;
+	sgnt_buf = (unsigned char*)malloc(sgnt_size);
+	memset(sgnt_buf,0,sgnt_size); 
+	memcpy(sgnt_buf,msg_signed + clear_size,sgnt_size);
+   
+   
+   
+   cout<<"DEBUG: Verifica della firma"<<endl;
+   cout<<"DEBUG: Clear Buffer = "<<clear_buf<<endl;
+   cout<<"DEBUG: Clear Size = "<<clear_size<<endl;
+   cout<<"DEBUG: Signature Size = "<<sgnt_size<<endl;
    // declare some useful variables:
    const EVP_MD* md = EVP_sha256();
 
    // create the signature context:
    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
-   if(!md_ctx){ cerr << "Error: EVP_MD_CTX_new returned NULL\n"; exit(1); }
+   if(!md_ctx){ cerr << "Error: EVP_MD_CTX_new returned NULL\n"; pthread_exit(NULL); }
 
    // verify the plaintext:
    // (perform a single update on the whole plaintext, 
    // assuming that the plaintext is not huge)
    ret = EVP_VerifyInit(md_ctx, md);
-   if(ret == 0){ cerr << "Error: EVP_VerifyInit returned " << ret << "\n"; exit(1); }
+   if(ret == 0){ cerr << "Error: EVP_VerifyInit returned " << ret << "\n"; pthread_exit(NULL); }
    ret = EVP_VerifyUpdate(md_ctx, clear_buf, clear_size);  
    if(ret == 0){ cerr << "Error: EVP_VerifyUpdate returned " << ret << "\n"; exit(1); }
    ret = EVP_VerifyFinal(md_ctx, sgnt_buf, sgnt_size, pubkey);
@@ -131,23 +152,10 @@ bool verifySignMsg(unsigned char* userName, unsigned char* text, struct signatur
       // deallocate buffers:
       return false;
    }
-   cout<<"QIO"<<endl;
-   //free(clear_buf);
-   //free(sgnt_buf);
+   cout<<"DEBUG: firma correttamente verificata."<<endl;
+   free(clear_buf);
+   free(sgnt_buf);
    EVP_PKEY_free(pubkey);
    EVP_MD_CTX_free(md_ctx);
    return true;
-}*/
-
-int main() {
-	//struct signature sign;
-	unsigned char name[]="raffa";
-	unsigned char msg[] ="Ciaosdfsdfsdfsdfsdfadsfasdfsdsda";
-	sendAndSignMsg(name,msg/*,&sign*/);
-	//*sign.sign_buf='A';
-	/*if(verifySignMsg(name,msg,&sign))
-		cout<<"Firma autenticata con SUCCESSO"<<endl;
-	else
-		cout<<"Firma NON AUTENTICA"<<endl;*/
-	return 0;
 }
