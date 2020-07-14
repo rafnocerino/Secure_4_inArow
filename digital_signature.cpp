@@ -6,12 +6,12 @@
 #include <string.h> // for memset()
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include "digital_signature.h"
 
 using namespace std;
 
-bool sendAndSignMsg(/*int socket,*/unsigned char* userName, unsigned char* msg_to_sign/*,struct sockaddr_in* address,int address_len*/){
+bool sendAndSignMsg(int socket,unsigned char* userName, unsigned char* msg_to_sign,struct sockaddr_in* address,int address_len){
 
- 
 	// used for return values
 	int ret; 
 

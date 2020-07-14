@@ -25,6 +25,7 @@
 //#include "../protocol_constant.h"
 #include "../check_message.h"
 #include "../send_message.h"
+#include "../digital_signature.h"
 
 #include "users_datastructure.h"
 #include "challenges_datastructure.h"
@@ -199,11 +200,9 @@ void* serveClient(void *arg){
 	}else{
 		if(check_login(threadSocket,loginMessage,sizeMessageReceived,username)){
 			printf("Il messaggio di login ricevuto e' corretto.\n");
-			printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
 			printf("USERNAME. RICEVUTO: %s.\n",username);
 			memset(sendBuffer, 0, BUF_SIZE);
-			printf("Porta a cui mando l'ack del login -> %u\n",clientAddress.sin_port);
-			send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
+			//send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
 			if(addNewUserDataStructure(username,clientAddress)){
 				//seqNum = seqNum + 1;
 				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
@@ -427,12 +426,12 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 					//Se si esce dal ciclo in ogni caso va rimosso l'utente dalla struttura dati
 					removeUserDataStructure(username);
 					close(threadSocket);
+		}
+	}else{
+		printf("Errore: il messaggio di login ricevuto ha un formato errato\n");
+	}
 }
-}
-}
-//}
-//}
-//}
+
 /*
 					}else{
 						printf("Errore nell'invio della prima lista degli utenti disponibili.\n");
