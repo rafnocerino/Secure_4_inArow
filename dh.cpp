@@ -134,8 +134,6 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
 	pthread_exit(NULL);
  } 
  
-  cout<<"9"<<endl;
- 
   if(PEM_write_PUBKEY(file_mydhpubkey, my_dhkey)<=0){
 	 perror("Error during the storing of temp my DH public key ! \n");
 	close(sd);

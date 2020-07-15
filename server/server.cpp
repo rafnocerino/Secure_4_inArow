@@ -60,6 +60,8 @@ vector<int> intializeIndexesAvailableTID(){
 	return result;
 }
 
+
+
 bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int clientAddressLen){
 	uint8_t seqNum = expSeqNum;
 	uint8_t opcode = OPCODE_ACK;
@@ -408,8 +410,9 @@ void* serveClient(void *arg){
 											//Vanno recuperati gli indirizzi degli utenti:
 											struct sockaddr_in sfidante_addr;
 											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){
-													printf("IP SFIDANTE: %s\n",inet_ntoa(sfidante_addr.sin_addr));													
-												seqNum = seqNum + 1; 	 send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),strdup("0000000000000000"),seqNum,&sfidante_addr,sizeof(sfidante_addr));
+												printf("IP SFIDANTE: %s\n",inet_ntoa(sfidante_addr.sin_addr));													
+												seqNum = seqNum + 1; 	 
+												send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),strdup("0000000000000000"),seqNum,&sfidante_addr,sizeof(sfidante_addr));
 												// Aspettiamo di ricevere l'ACK
 												if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
 													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente	

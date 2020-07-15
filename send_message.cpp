@@ -137,7 +137,7 @@ void send_challengeRefused(int socket, unsigned char* buffer, uint8_t seq_numb, 
     memcpy(buffer + pos, &id, sizeof(id));
     pos += sizeof(id);
 
-    int ret = sendto(socket, buffer, pos, 0, (struct sockaddr*)sv_addr_challenge, addr_size);
+    int ret = sendto(socket,buffer, pos, 0, (struct sockaddr*)sv_addr_challenge, addr_size);
     if (ret < SIZE_MESSAGE_CHALLENGE_REFUSED) {
         perror("There was an error during the sending of the malformed msg ! \n");
         pthread_exit(NULL);
