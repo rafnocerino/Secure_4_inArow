@@ -18,8 +18,6 @@
 #include "protocol_constant.h"
 using namespace std;
 
-#define BUF_SIZE 512
-
 /* OP_CODE - SEQ_NUMB - LEN - DH_PARAM */
 
 void send_dh(int socket, struct sockaddr_in* sv_addr, EVP_PKEY* dhsigned, int len_dhsigned

@@ -10,6 +10,7 @@
 #define SIZE_PUBLIC_KEY 257
 #define SIZE_CHALLENGE_NUMBER 4
 #define SIZE_RANDOM_DATA 16
+#define SIZE_DH_PUBLIC_KEY 256
 #define SIZE_SIGNATURE 256
 #define SIZE_CERTIFICATE_LEN 4
 
@@ -27,7 +28,7 @@ const unsigned int SIZE_MESSAGE_UPDATE_STATUS = SIZE_OPCODE + SIZE_SEQNUMBER + S
 const unsigned int SIZE_MESSAGE_ACK = SIZE_OPCODE + SIZE_SEQNUMBER;
 const unsigned int SIZE_MESSAGE_EXIT = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
-
+const unsigned int SIZE_MESSAGE_DH_MESSAGE = SIZE_OPCODE + SIZE_DH_PUBLIC_KEY + SIZE_SIGNATURE;
 /*--------------------------------------------STATUS-CODE---------------------------------------------------------------*/
 #define STATUS_IDLE 0
 #define STATUS_CHALLENGING 1
@@ -43,6 +44,7 @@ const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
 #define OPCODE_CHALLENGE_REQUEST 4
 #define OPCODE_CHALLENGE_ACCEPTED 5
 #define OPCODE_CHALLENGE_START 6
+#define OPCODE_DH_MESSAGE 7
 #define OPCODE_CHALLENGE_REFUSED 8
 #define OPCODE_CHALLENGE_UNAVAILABLE 9
 #define OPCODE_UPDATE_STATUS 10
@@ -52,3 +54,6 @@ const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
 /*----------------------------------------------------------------------------------------------------------------------*/
 
 #define WAIT_TIME_LOGIN 30
+
+
+#define BUF_SIZE 1024

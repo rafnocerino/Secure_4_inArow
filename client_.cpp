@@ -29,8 +29,6 @@ using namespace std;
 
 uint8_t seq_numb;
 
-#define BUF_SIZE 512
-
 //valutare la possibilità di fare funzione receive_ACK()---> riduce di molto la ridondanza
 
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){

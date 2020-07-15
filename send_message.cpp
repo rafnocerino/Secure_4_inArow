@@ -19,8 +19,6 @@
 #include "protocol_constant.h"
 using namespace std;
 
-#define BUF_SIZE 512
-
 void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size,bool serverCall){
 		
 		uint8_t opcodeMex = OPCODE_SIGNATURE_MESSAGE;
