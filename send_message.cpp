@@ -19,6 +19,30 @@
 #include "protocol_constant.h"
 using namespace std;
 
+void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall){
+	
+	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pkey_len);
+	
+	socklen_t len=sizeof(*sv_addr);
+	int pos = 0;
+    uint8_t op_code = OPCODE_DH_MESSAGE;
+    int pkey_len_mex = pkey_len;
+	
+	memcpy(msg_to_sign,&op_code,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+	memcpy(msg_to_sign + pos,&pkey_len_mex,SIZE_DH_PUBLIC_KEY_LEN);
+	pos += SIZE_DH_PUBLIC_KEY_LEN;
+	memcpy(msg_to_sign + pos, myDHpubkey,pkey_len);
+	pos += pkey_len;
+	
+	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall,true)){
+		perror("There was an error during the sending of the signed DH public key.\n");
+		close(socket);
+		pthread_exit(NULL);
+		
+	}
+}
+
 void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size,bool serverCall){
 		
 		uint8_t opcodeMex = OPCODE_SIGNATURE_MESSAGE;

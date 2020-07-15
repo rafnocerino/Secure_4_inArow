@@ -14,6 +14,7 @@
 #include "send_message.h"
 #include "gioco_v2.1.h"
 #include "digital_signature.h"
+#include "dh.h"
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
@@ -46,7 +47,7 @@ void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_
 
 }
 
-void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
+void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY* server_pubkey,unsigned char* shared_secret, unsigned int& shared_secretLen){
 	
 	unsigned char *buf;
 	buf = (unsigned char*)malloc(BUF_SIZE);
@@ -197,7 +198,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
 	
 	X509_STORE_CTX_free(ctx);
 	
-	EVP_PKEY* server_pubkey = X509_get_pubkey(server_cert);
+	server_pubkey = X509_get_pubkey(server_cert);
 	
 	check=verifySignMsg(user,buf,SIZE_MESSAGE_SIGNATURE_MESSAGE,server_pubkey);
 	if(!check){
@@ -208,6 +209,11 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user){
 	
 	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,size,false);
 	
+	sharedSecretCreationDH(sock, serverPrivAddress, false,user,server_pubkey,shared_secret,shared_secretLen);
+		
+	cout<<"DEBUG: chiave di sessione ottenuta di lungezza = "<<shared_secretLen<<endl;
+	cout<<"DEBUG: chiave di sessione ottenuta = "<<endl;
+	BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
 
 }
 
@@ -708,6 +714,9 @@ int main() {
     char*  available_users;
     int avail_len;
 	char* user = (char*) malloc(255);
+	EVP_PKEY* server_pubkey;
+	unsigned char* shared_secret = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+	unsigned int shared_secretLen=0;
 	
 	if(!user){
 		cout<<"There was an error during the allocation of the buffer for the username! "<<endl;
@@ -735,7 +744,7 @@ int main() {
 
     inet_pton(AF_INET, ip_addr, &sv_addr_main.sin_addr);
 
-    login(sock,&sv_addr_priv,user);
+    login(sock,&sv_addr_priv,user,server_pubkey,shared_secret,shared_secretLen);
 
     while (1) {
         

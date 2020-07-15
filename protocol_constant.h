@@ -10,9 +10,10 @@
 #define SIZE_PUBLIC_KEY 257
 #define SIZE_CHALLENGE_NUMBER 4
 #define SIZE_RANDOM_DATA 16
-#define SIZE_DH_PUBLIC_KEY 256
+#define SIZE_SESSION_KEY 32
 #define SIZE_SIGNATURE 256
 #define SIZE_CERTIFICATE_LEN 4
+#define SIZE_DH_PUBLIC_KEY_LEN 4 
 
 //Lunghezze in byte di tutti i messaggi
 const unsigned int SIZE_MESSAGE_LOGIN = SIZE_OPCODE + SIZE_LEN + pow(2,8*SIZE_LEN);
@@ -28,7 +29,7 @@ const unsigned int SIZE_MESSAGE_UPDATE_STATUS = SIZE_OPCODE + SIZE_SEQNUMBER + S
 const unsigned int SIZE_MESSAGE_ACK = SIZE_OPCODE + SIZE_SEQNUMBER;
 const unsigned int SIZE_MESSAGE_EXIT = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
-const unsigned int SIZE_MESSAGE_DH_MESSAGE = SIZE_OPCODE + SIZE_DH_PUBLIC_KEY + SIZE_SIGNATURE;
+//const unsigned int SIZE_MESSAGE_DH_MESSAGE = SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pow(2,8*SIZE_DH_PUBLIC_KEY_LEN) + SIZE_SIGNATURE;
 /*--------------------------------------------STATUS-CODE---------------------------------------------------------------*/
 #define STATUS_IDLE 0
 #define STATUS_CHALLENGING 1

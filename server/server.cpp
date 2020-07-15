@@ -1,4 +1,4 @@
-//#include <unistd.h>
+#include <unistd.h>
 #include <sys/socket.h> //[]
 #include <arpa/inet.h>
 #include <netinet/in.h> //[]
@@ -12,15 +12,11 @@
 #include <cstdint>
 #include <math.h>
 #include <stdint.h>
+
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <unistd.h>
-#endif
-
+#include "../dh.h"
 #include "../check_message.h"
 #include "../send_message.h"
 #include "../digital_signature.h"
@@ -31,7 +27,6 @@ using namespace std;
 
 #define SERVER_PORT 7799
 #define MAX_REQUEST 50
-#define BUF_SIZE 512
 #define SLEEP 20
 
 static const char serverCertificateFilePath[] = "../Certificates/Server_cert.pem";
@@ -284,7 +279,18 @@ void* serveClient(void *arg){
 						if(check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){
 							
 							printf("Il messaggio ricevuto indietro e' correttamente firmato.\n");
-				
+							
+							// Allocazione del buffer per la memorizzazione della chiave di sessione
+							unsigned char* sessionKey = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+							unsigned int sessionKeyLen = 0;
+							
+							//Chiamata della funzione per derivare il segreto condiviso con Diffie-Hellman:
+							sharedSecretCreationDH(threadSocket,&clientAddress,true,username,NULL,sessionKey,sessionKeyLen);
+
+							printf("DEBUG: ottenuta una chiave di sessione di lunghezza %d.\n",sessionKeyLen);
+							
+							BIO_dump_fp (stdout, (const char*)sessionKey ,sessionKeyLen); 
+							
 				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
 	
 				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){

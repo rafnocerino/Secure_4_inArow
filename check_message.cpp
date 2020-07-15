@@ -424,7 +424,7 @@ bool check_signature_message_server(unsigned char* buffer,int messageLength,unsi
 	uint8_t opcodeMex = 0;
 	int clearMessageSize = messageLength - SIZE_SIGNATURE;
 	unsigned char* randomDataMex = (unsigned char*)malloc(SIZE_RANDOM_DATA);
-	memset(randomDataMex,0,SIZE_SIGNATURE);
+	memset(randomDataMex,0,SIZE_RANDOM_DATA);
 	memcpy(&opcodeMex,buffer,SIZE_OPCODE);
 	if(opcodeMex != OPCODE_SIGNATURE_MESSAGE){
 		return false;
@@ -476,4 +476,32 @@ bool check_signatureMessageClient(unsigned char* buffer,int messageLength,unsign
 	}
 	
 	return true;
+}
+
+bool check_DHmessage(unsigned char* buffer,int messageLength,int& pkey_len,unsigned char* peer_dh_pubkey){
+	
+	int pos = 0;
+	uint8_t rcv_opcode;
+	int pkey_len_mex;
+	
+	memcpy(&rcv_opcode,buffer,SIZE_OPCODE);
+	pos+=SIZE_OPCODE;
+	
+	memcpy(&pkey_len_mex,buffer + pos,SIZE_DH_PUBLIC_KEY_LEN);
+	pos+=SIZE_DH_PUBLIC_KEY_LEN;
+	pkey_len = pkey_len_mex;
+	
+	memcpy(peer_dh_pubkey,buffer+pos,pkey_len);
+	pos+=pkey_len;
+	
+	if(rcv_opcode != OPCODE_DH_MESSAGE){
+		return false;
+	}
+	
+	if( messageLength != SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + SIZE_SIGNATURE + pkey_len){
+		return false;
+	}
+	
+	return true;
+	
 }

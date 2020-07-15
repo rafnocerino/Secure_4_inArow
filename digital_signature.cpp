@@ -17,7 +17,7 @@
 #include <sys/socket.h>
 using namespace std;
 
-bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall){
+bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall,bool needChunk /*= false*/){
 
 	// used for return values
 	int ret; 
@@ -93,15 +93,29 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	
 	cout<<"DEBUG: Indirizzo ="<<inet_ntoa(address->sin_addr)<<endl;
 	cout<<"DEBUG: Lunghezza Indirizzo = "<<address_len<<endl;
+		
+	if(needChunk){
+		ret = sendto(socket, sendBuffer, SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN, 0,(struct sockaddr*)address,address_len);
+		if(ret < SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN){
+			perror("Errore: impossibile inviare il messaggio signature_message chunk 1.\n");
+			return false;
+		}
+		ret = sendto(socket, sendBuffer + SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN, messageLen + sgnt_size - (SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN), 0,(struct sockaddr*)address,address_len);	
+		if(ret < messageLen + sgnt_size - (SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN)){
+			perror("Errore: impossibile inviare il messaggio signature_message chunk 2.\n");
+			return false;			
+		}
+	}else{		
+		ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
+		if(ret < messageLen + sgnt_size){
+			perror("Errore: impossibile inviare il messaggio signature_message.\n");
+			return false;
+		}
+	}
 	
-	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
-
 	free(sendBuffer);
 	
-	if(ret < messageLen + sgnt_size){
-		perror("Errore: impossibile inviare il messaggio signature_message.\n");
-		return false;
-	}
+	
 	
 	return true;
 }
@@ -140,7 +154,8 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
    
    
    cout<<"DEBUG: Verifica della firma"<<endl;
-   cout<<"DEBUG: Clear Buffer = "<<clear_buf<<endl;
+   cout<<"DEBUG: Clear Buffer = "<<endl;
+   BIO_dump_fp(stdout,(const char*)clear_buf,clear_size);
    cout<<"DEBUG: Clear Size = "<<clear_size<<endl;
    cout<<"DEBUG: Signature Size = "<<sgnt_size<<endl;
    // declare some useful variables:
