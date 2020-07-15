@@ -7,7 +7,7 @@
 #define SIZE_CHALLENGE_NUMBER 4
 #define SIZE_STATUS_CODE 1
 #define SIZE_IP_ADDRESS 16
-#define SIZE_PUBLIC_KEY 257
+#define SIZE_PUBLIC_KEY 451
 #define SIZE_CHALLENGE_NUMBER 4
 #define SIZE_RANDOM_DATA 16
 #define SIZE_SESSION_KEY 32
@@ -29,7 +29,7 @@ const unsigned int SIZE_MESSAGE_UPDATE_STATUS = SIZE_OPCODE + SIZE_SEQNUMBER + S
 const unsigned int SIZE_MESSAGE_ACK = SIZE_OPCODE + SIZE_SEQNUMBER;
 const unsigned int SIZE_MESSAGE_EXIT = SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + pow(2,8*SIZE_LEN);
 const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
-//const unsigned int SIZE_MESSAGE_DH_MESSAGE = SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pow(2,8*SIZE_DH_PUBLIC_KEY_LEN) + SIZE_SIGNATURE;
+const unsigned int SIZE_MESSAGE_DH_MESSAGE_INFO = SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + SIZE_SIGNATURE;
 /*--------------------------------------------STATUS-CODE---------------------------------------------------------------*/
 #define STATUS_IDLE 0
 #define STATUS_CHALLENGING 1
@@ -52,6 +52,7 @@ const unsigned int SIZE_MESSAGE_MALFORMED_MEX = SIZE_OPCODE + SIZE_SEQNUMBER;
 #define OPCODE_ACK 11
 #define OPCODE_EXIT 12
 #define OPCODE_MALFORMED_MEX 13 
+#define OPCODE_DH_MESSAGE_INFO 14
 /*----------------------------------------------------------------------------------------------------------------------*/
 
 #define WAIT_TIME_LOGIN 30

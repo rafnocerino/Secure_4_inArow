@@ -32,6 +32,13 @@ uint8_t seq_numb;
 
 //valutare la possibilità di fare funzione receive_ACK()---> riduce di molto la ridondanza
 
+EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
+	BIO* mbio = BIO_new(BIO_s_mem());
+	BIO_write(mbio,pubkey_buf,pubkeySize);
+	EVP_PKEY* pubkey = PEM_read_bio_PUBKEY(mbio,NULL,NULL,NULL);
+	return pubkey;
+}
+
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
 	printf("Entrato.\n");
     socklen_t size = addr_size;
@@ -428,7 +435,10 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
                 send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size);
                 // here we will insert a function call in order to start the game
-		gameStart(adv_ip,1);            
+                
+                EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
+                
+				gameStart(adv_ip,1,pubkey_adv);            
 		}
         }
 
@@ -666,7 +676,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 		memcpy(available_users,result,result_size);*/
     }
     
-    if (rcv_opcode == OPCODE_CHALLENGE_START) {
+    if(rcv_opcode == OPCODE_CHALLENGE_START){
 
         cout<<"Challenge accepted! "<<endl;
 
@@ -676,11 +686,14 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
             send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
             close(socket);
             exit(-1);
-            }
-
-        send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);
+        }
+		
+		send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);
         // here we will insert a function call in order to start the game
-	gameStart(adv_ip,0);
+        
+        EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
+        
+		gameStart(adv_ip,0,pubkey_adv);
     }
     
 

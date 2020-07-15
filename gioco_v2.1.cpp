@@ -344,8 +344,8 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 	return winner;
 }
 
-int gameStart(unsigned char* IpAddr,int playerI)
-{
+int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv){
+	
 	/* UDP Socket data structure */
 	int sd, new_sd, ret, check_bind;
 	struct sockaddr_in adversary_socket; //where to send/recive data

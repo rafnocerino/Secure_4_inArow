@@ -297,7 +297,7 @@ void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum
 	}	
 }
 
-void send_challengeStart(int socket,unsigned char* buffer,char* ip,char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
+void send_challengeStart(int socket,unsigned char* buffer,char* ip,unsigned char* public_key,uint8_t seqNum,sockaddr_in* client_addr,int addr_size){
 	uint8_t opcode = OPCODE_CHALLENGE_START;
 	uint8_t seqNumMex = seqNum;
 	uint8_t lenMex = strlen(ip) + 1;

@@ -60,7 +60,28 @@ vector<int> intializeIndexesAvailableTID(){
 	return result;
 }
 
-
+int serialize_PEM_Pub_Key_From_File(string username,unsigned char** pubkeyBuffer){
+	string pathFile = "./public keys/" + username + "_public.pem"; 
+	
+	FILE *f = fopen(pathFile.c_str(),"rb");
+	
+	if(f == NULL){
+		return -1;
+	}
+	
+	EVP_PKEY* pubkey = PEM_read_PUBKEY(f,NULL,NULL,NULL);
+	
+	if(pubkey == NULL){
+		return -1;
+	}
+	
+	fclose(f);
+	 
+	BIO* mbio = BIO_new(BIO_s_mem());
+	PEM_write_bio_PUBKEY(mbio,pubkey);
+	int ret = BIO_get_mem_data(mbio,pubkeyBuffer);
+	return ret;
+}
 
 bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int clientAddressLen){
 	uint8_t seqNum = expSeqNum;
@@ -411,12 +432,17 @@ void* serveClient(void *arg){
 											struct sockaddr_in sfidante_addr;
 											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){
 												printf("IP SFIDANTE: %s\n",inet_ntoa(sfidante_addr.sin_addr));													
-												seqNum = seqNum + 1; 	 
-												send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),strdup("0000000000000000"),seqNum,&sfidante_addr,sizeof(sfidante_addr));
+												seqNum = seqNum + 1;
+												unsigned char* temp_pubkey;
+												int ret = serialize_PEM_Pub_Key_From_File(username,&temp_pubkey);
+												if(ret == SIZE_PUBLIC_KEY){ 	 
+												send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),temp_pubkey,seqNum,&sfidante_addr,sizeof(sfidante_addr));
 												// Aspettiamo di ricevere l'ACK
 												if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
-													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente	
-send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),strdup("0000000000000000"),seqNum,&clientAddress,sizeof(clientAddress));
+													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente
+													int ret = serialize_PEM_Pub_Key_From_File(getChallengesDataStructure().at(challengeIndex).username1,&temp_pubkey);
+													if(ret ==  SIZE_PUBLIC_KEY){
+send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),temp_pubkey,seqNum,&clientAddress,sizeof(clientAddress));
 													//Aspettiamo di ricevere l'ACK													
 													if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr))){
 														printf("Correttamente inviate le challenge start.\n");
@@ -425,10 +451,16 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),st
 														exitORerror = true;
 													}
 												}else{
+													printf("Errore: serializzazione della chiave pubblica dell'utente 2 non riuscita.\n");
+													exitORerror = true;
+												}
+												}else{
 													printf("Errore nella ricezione dell'ACK.\n");
 													exitORerror = true;
 												}
-											
+											}else{
+												printf("Errore: serializzazione della chiave pubblica dell'utente 2 non riuscita.\n");
+											}
 											}else{
 												printf("Errore: recupero dello IP dello sfidato non riuscito.\n");
 												exitORerror = true;
