@@ -195,13 +195,55 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	char usernameServer[] = "server"; 
 	
+	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, usernameServer , true);
+	
+	
 	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,usernameServer,first);
 	
 	//after sending my DH pubkey, i wait for the reception of the opposite DH pubkey
 	
+	int pubkey_len; // contains the dimension of the opposite DH pubkey
+	
 	memset(buffer,0,BUF_SIZE);
 	size = sizeof(*opposite_addr);
-	received = recvfrom(sd,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,0,(struct sockaddr*)opposite_addr,&size);
+	received = recvfrom(sd,buffer,SIZE_MESSAGE_DH_MESSAGE_INFO,0,(struct sockaddr*)opposite_addr,&size);
+	
+	if( received <= 0 ){
+		
+		printf("Timer expired for the reception of DH message info ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	check=check_DHmessage_info(buffer,received,pubkey_len);
+	if(!check){
+		
+		perror("The DH message info received is altered! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	check=verifySignMsg(username,buffer,received,NULL);
+	if(!check){
+		
+		printf("The signature verification of the received DH message info has given negative result ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}	
+	
+	
+	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
+	
+	
+	
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	
+	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
 	
 	if( received <= 0 ){
 		
@@ -211,23 +253,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	int pubkey_len;
-	memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
-	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pubkey_len + SIZE_SIGNATURE);
-	received = recvfrom(sd,temp_buf + SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
-	
-	received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
-	
-	if( received <= 0 ){
-		
-		printf("Timer expired for the reception of DH message ! \n");
-		close(sd);
-		pthread_exit(NULL);
-		
-	}
-	
-	memcpy(temp_buf,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN);
 	
 	unsigned char* peer_DH_pubkey = (unsigned char*) malloc (pubkey_len);
 	
@@ -315,10 +340,94 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 }else{
 	 
+	int pubkey_len; // contains the dimension of the opposite DH pubkey
+	
+	memset(buffer,0,BUF_SIZE);
+	size = sizeof(*opposite_addr);
+	received = recvfrom(sd,buffer,SIZE_MESSAGE_DH_MESSAGE_INFO,0,(struct sockaddr*)opposite_addr,&size);
+	
+	if( received <= 0 ){
+		
+		printf("Timer expired for the reception of DH message info ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	check=check_DHmessage_info(buffer,received,pubkey_len);
+	if(!check){
+		
+		perror("The DH message info received is altered! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	check=verifySignMsg(username,buffer,received,oppositeKey);
+	if(!check){
+		
+		printf("The signature verification of the received DH message info has given negative result ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}	
+	
+	cout<<"DEBUG: correttamente verificato il messaggio di DH_INFO"<<endl;
+	cout<<"DEBUG: la lunghezza della public key e'"<< pubkey_len <<endl;
+	
+	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
+	
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	
+	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
+	
+	if( received <= 0 ){
+		
+		printf("Timer expired for the reception of DH message ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	
+	unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
+	
+	check = check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer);
+	if(!check){
+		
+		printf("The structure of the received DH message is altered! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	check=verifySignMsg(username,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,oppositeKey);
+	if(!check){
+		
+		printf("The signature verification of the received DH message has given negative result ! \n");
+		close(sd);
+		pthread_exit(NULL);
+		
+	}
+	
+	free(temp_buf);
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
+	 
 	// Comportamento del client:
 	
 	//1. Mi metto in attesa di un messaggio contenente la chiave pubblica del server: 
-	memset(buffer,0,BUF_SIZE);
+	/*memset(buffer,0,BUF_SIZE);
 	size = sizeof(*opposite_addr);
 	
 	received = recvfrom(sd,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,0,(struct sockaddr*)opposite_addr,&size);
@@ -338,14 +447,14 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	memcpy(temp_buf,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN);
+	memcpy(temp_buf,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN);*/
 	
 	//2. Se la chiave pubblica arriva entro lo scadere del timer e il messaggio ha una grandezza corretta:
 	//if(received == SIZE_MESSAGE_DH_MESSAGE){
 		//Alloco il buffer che conterrà la chiave pubblica del server:
-		unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
+		//unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
 		//3. Controllo la struttura del messaggio e estrazione della chiave pubblica:
-		if(check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer)){
+		/*if(check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer)){
 			printf("DEBUG: la struttura del messaggio DH message ricevuto è corretta.\n");
 			//4. Verifico la firma contenuta nel messaggio:
 			if(verifySignMsg(username,temp_buf,received,oppositeKey)){
@@ -374,7 +483,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 				
 				//6. Lettura della chiave pubblica dal file temporaneo:
 				
-				//f = fopen("./tmp/tmp_DH_pubkey_2.pem","rb");
+				//f = fopen("./tmp/tmp_DH_pubkey_2.pem","rb");*/
 				
 				/*peer_pubkey = PEM_read_PUBKEY(f,NULL,NULL,NULL);*/
 				
@@ -423,10 +532,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 				
 				//printf("Here it is the shared secret: \n");
 				//BIO_dump_fp (stdout, (const char *)skey, skeylen);
-				
+				send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false);
 				send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first);
 			
-			}else{
+			/*}else{
 				perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con firma errata.\n");
 				close(sd);
 				pthread_exit(NULL);
@@ -435,7 +544,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 			perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con formato errato.\n");
 			close(sd);
 			pthread_exit(NULL);
-		}
+		}*/
 		
 	/*}else{
 		perror("Errore: durante il protocollo DH il client non e' riuscito a ottenere il messaggio con la chiave pubblica del server.\n");

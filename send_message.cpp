@@ -19,23 +19,44 @@
 #include "protocol_constant.h"
 using namespace std;
 
-void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall){
+void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, char* username, bool serverCall){
 	
-	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pkey_len);
-	
+	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE+SIZE_DH_PUBLIC_KEY_LEN);
 	socklen_t len=sizeof(*sv_addr);
 	int pos = 0;
-    uint8_t op_code = OPCODE_DH_MESSAGE;
-    int pkey_len_mex = pkey_len;
+	int pkey_len_mex = pkey_len;
+    uint8_t op_code = OPCODE_DH_MESSAGE_INFO;
 	
 	memcpy(msg_to_sign,&op_code,SIZE_OPCODE);
 	pos += SIZE_OPCODE;
 	memcpy(msg_to_sign + pos,&pkey_len_mex,SIZE_DH_PUBLIC_KEY_LEN);
 	pos += SIZE_DH_PUBLIC_KEY_LEN;
+	
+	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall)){
+		perror("There was an error during the sending of the signed DH public key.\n");
+		close(socket);
+		pthread_exit(NULL);
+		
+	}
+	
+	
+}
+
+void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall){
+	
+	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + pkey_len);
+	
+	socklen_t len=sizeof(*sv_addr);
+	int pos = 0;
+    uint8_t op_code = OPCODE_DH_MESSAGE;
+    
+	
+	memcpy(msg_to_sign,&op_code,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
 	memcpy(msg_to_sign + pos, myDHpubkey,pkey_len);
 	pos += pkey_len;
 	
-	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall,true)){
+	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall)){
 		perror("There was an error during the sending of the signed DH public key.\n");
 		close(socket);
 		pthread_exit(NULL);

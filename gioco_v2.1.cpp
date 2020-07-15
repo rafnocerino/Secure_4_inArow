@@ -28,7 +28,7 @@
 #include "send_message.h"
 
 #include "protocol_constant.h"
-
+#include "gioco_v2.1.h"
 #define MAX_BUFFER_SIZE 512
 #define OPCODE_MOVE 14
 using namespace std;

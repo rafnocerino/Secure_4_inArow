@@ -27,3 +27,4 @@ void send_login(int socket,unsigned char* buffer,char* username,uint8_t len,sock
 void send_signature_message(int socket,unsigned char* buffer,unsigned char* random_data,char* username,int sizeCertificate,struct sockaddr_in* address,int address_size,bool serverCall);
 void send_certificate_message(int socket,unsigned char* certificate,int certificateLen,struct sockaddr_in* address,int address_size);
 void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall);
+void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, char* username, bool serverCall);

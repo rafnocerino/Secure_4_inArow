@@ -32,12 +32,12 @@ uint8_t seq_numb;
 
 //valutare la possibilità di fare funzione receive_ACK()---> riduce di molto la ridondanza
 
-EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
+/*EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
 	BIO* mbio = BIO_new(BIO_s_mem());
 	BIO_write(mbio,pubkey_buf,pubkeySize);
 	EVP_PKEY* pubkey = PEM_read_bio_PUBKEY(mbio,NULL,NULL,NULL);
 	return pubkey;
-}
+}*/
 
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
 	printf("Entrato.\n");

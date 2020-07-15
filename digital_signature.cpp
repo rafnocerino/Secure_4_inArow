@@ -17,7 +17,9 @@
 #include <sys/socket.h>
 using namespace std;
 
-bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall,bool needChunk /*= false*/){
+bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall){
+
+	cout<<"DEBUG: firmo con username = "<<userName<<endl;
 
 	// used for return values
 	int ret; 
@@ -94,24 +96,13 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	cout<<"DEBUG: Indirizzo ="<<inet_ntoa(address->sin_addr)<<endl;
 	cout<<"DEBUG: Lunghezza Indirizzo = "<<address_len<<endl;
 		
-	if(needChunk){
-		ret = sendto(socket, sendBuffer, SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN, 0,(struct sockaddr*)address,address_len);
-		if(ret < SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN){
-			perror("Errore: impossibile inviare il messaggio signature_message chunk 1.\n");
-			return false;
-		}
-		ret = sendto(socket, sendBuffer + SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN, messageLen + sgnt_size - (SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN), 0,(struct sockaddr*)address,address_len);	
-		if(ret < messageLen + sgnt_size - (SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN)){
-			perror("Errore: impossibile inviare il messaggio signature_message chunk 2.\n");
-			return false;			
-		}
-	}else{		
-		ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
-		if(ret < messageLen + sgnt_size){
+		
+	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
+	if(ret < messageLen + sgnt_size){
 			perror("Errore: impossibile inviare il messaggio signature_message.\n");
 			return false;
 		}
-	}
+	
 	
 	free(sendBuffer);
 	
@@ -121,8 +112,9 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 }
 
 bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,EVP_PKEY* pubkey){
-   int ret; // used for return values
    
+   int ret; // used for return values
+  
    if(pubkey == NULL){
 		// read the peer's public key file from keyboard:
 		string pubkey_file_name ="../public keys/";
@@ -181,7 +173,9 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
    cout<<"DEBUG: firma correttamente verificata."<<endl;
    free(clear_buf);
    free(sgnt_buf);
-   EVP_PKEY_free(pubkey);
+	if(pubkey == NULL){
+		EVP_PKEY_free(pubkey);
+	}
    EVP_MD_CTX_free(md_ctx);
    return true;
 }
