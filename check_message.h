@@ -14,7 +14,6 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
 bool check_login(int socket,unsigned char* message, int messageLength,char* username);
 bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t& statusCode,char* username,unsigned char* key); 
 bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username,unsigned char* key);
-bool check_firstExit(int socket,unsigned char* message,int messageLength,uint8_t& seqNum,char* username,unsigned char* key);
 bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber,unsigned char* key);
 bool check_available_userList(int socket,unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag,unsigned char* key);
 bool check_signature_message_server(unsigned char* buffer,int messageLength,unsigned char* expectedRandomData);
@@ -22,4 +21,3 @@ bool check_certificateMessage(unsigned char* certificate_buffer,int messageLengt
 bool check_signatureMessageClient(unsigned char* buffer,int messageLength,unsigned char* random_data,unsigned char* signature);
 bool check_DHmessage(unsigned char* buffer,int messageLength,int pkey_len,unsigned char* peer_dh_pubkey);
 bool check_DHmessage_info(unsigned char* buffer, int messageLength,int& pkey_len);
-bool check_firstUpdateStatus(int socket,unsigned char* message,int messageLength,uint8_t& newSeqNum,uint8_t& statusCode,char* username, unsigned char* key);

@@ -317,11 +317,12 @@ void* serveClient(void *arg){
 							
 							addKeyFromUsername(sessionKey,username);	
 							
+							//Invio della Available User List:
+							if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress)),sessionKey){
 							
 				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
 	
 				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
-					//if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress))){
 						seqNum = 0;
 						uint8_t statusCode = STATUS_IDLE;
 						bool exitORerror = false;
@@ -531,30 +532,17 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 
 							}else if(statusCode == STATUS_IDLE){
 								//Nel caso l'utente e' in idle può solo inviare un messaggio di Update Status
-								if(!getSeqNum && check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username,sessionKey)){
+								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username,sessionKey)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen,sessionKey);
 									//printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
 									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
-								}else if(getSeqNum && check_firstUpdateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username,sessionKey)){
-									getSeqNum = !getSeqNum;
-									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
-									setStatusUserDataStructure(statusCode,username);
-									//Invio il corrispondente ACK
-									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen,sessionKey);
-									//printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
-									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
-								}else if(!getSeqNum && check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username,sessionKey)){
+								}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username,sessionKey)){
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress),sessionKey);
-									exitORerror = true;								
-								}else if(getSeqNum && check_firstExit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username,sessionKey)){
-									getSeqNum = !getSeqNum;
-									//Invio il corrispondente ACK
-									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress),sessionKey);
-									exitORerror = true;
+									exitORerror = true;	
 								}else{
 									printf("Errore nella ricezione dell'update status (STATUS == IDLE) .\n");
 									exitORerror = true;
@@ -565,6 +553,9 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 					}
 					//Se si esce dal ciclo in ogni caso va rimosso l'utente dalla struttura dati
 					removeUserDataStructure(username);
+				}else{
+					printf("Errore: impossibile inviare la available user list.\n");
+				}
 				}else{
 					printf("Errore: il signature message ha un formato scorretto.\n");
 				}
@@ -578,6 +569,7 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 		}else{
 			printf("Errore: l'utente richiesto non e' uno degli utenti registrati o non e' stato possibile andarlo ad aggiungere alla struttura dati.\n");
 		}
+		
 	}else{
 		printf("Errore: il messaggio di login ricevuto ha un formato errato\n");
 	}
