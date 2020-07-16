@@ -44,14 +44,14 @@ struct request{
 	unsigned int sizeMessageReceived;
 };
 
-struct timer{
+/*struct timer{
 	int challengeId;
 	int socket;
 	unsigned char* buffer;
 	struct sockaddr_in clientAddress;	
 	bool *exitORerror;
 	uint8_t seqNum;
-};
+};*/
 
 vector<int> intializeIndexesAvailableTID(){
 	vector<int> result;
@@ -104,6 +104,7 @@ bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int cl
 	}
 	return true;	
 }
+
 /*
 void* timer_thread(void *arg){
 	

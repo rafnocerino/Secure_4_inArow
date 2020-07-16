@@ -7,10 +7,13 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <pthread.h>
+
+#include "gcm.h"
+
 using namespace std;
 
 
-struct cipher_txt{
+/*struct cipher_txt{
 	//cipher iv aad tag
 	unsigned char* all;
 	int all_len;
@@ -23,7 +26,7 @@ struct cipher_txt{
 	unsigned char* tag;
 	//tag 16 byte by default
 
-};
+};*/
 
 int handleErrors(){
 	printf("An error occourred.\n");
@@ -200,7 +203,8 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
         return -1;
     }
 }
-int main (void)
+
+/*int main (void)
 {
 	unsigned char msg[] = "Dario";
     BIO_dump_fp (stdout, (const char *)msg, sizeof(msg));
@@ -219,4 +223,4 @@ int main (void)
 	
 	
 	return 1;
-}
+}*/
