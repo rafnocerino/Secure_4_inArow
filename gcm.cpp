@@ -25,7 +25,6 @@ using namespace std;
 	//aad same len as iv
 	unsigned char* tag;
 	//tag 16 byte by default
-
 };*/
 
 int handleErrors(){
@@ -47,8 +46,8 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,c
     unsigned char* tag=(unsigned char*)malloc(16);
     RAND_poll();
     RAND_bytes((unsigned char*)&iv[0],iv_len);
-    RAND_bytes((unsigned char*)&aad[0],aad_len);
-    //aad=iv;
+    //RAND_bytes((unsigned char*)&aad[0],aad_len);
+    aad=iv;
 
     int len;
     int ciphertext_len;
@@ -84,15 +83,15 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,c
 
     c->iv=iv;
     c->len_iv=iv_len;
-    c->aad=aad;
+    //c->aad=aad;
     c->tag=tag;
 
     c->all=(unsigned char*)malloc(ciphertext_len+2*iv_len+16);
     memcpy(c->all,ciphertext,ciphertext_len);
     memcpy(c->all+ciphertext_len, iv, iv_len);
-    memcpy(c->all+ciphertext_len+iv_len, aad, iv_len);
-    memcpy(c->all+ciphertext_len+iv_len+iv_len, tag, 16);
-    c->all_len=ciphertext_len+2*iv_len+16;
+    //memcpy(c->all+ciphertext_len+iv_len, aad, iv_len);
+    memcpy(c->all+ciphertext_len+iv_len, tag, 16);
+    c->all_len=ciphertext_len+iv_len+16;
     
     cout<<"CIPHER"<<endl;
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len); 
@@ -128,7 +127,7 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,c
 
 int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
 
-    int ciphertext_len=all_len-12-12-16; //iv add tag
+    int ciphertext_len=all_len-12-16; //iv add tag
     unsigned char *plaintext=(unsigned char*)malloc(ciphertext_len);
     unsigned char* ciphertext=(unsigned char*)malloc(ciphertext_len);
     memcpy(ciphertext,all,ciphertext_len);
@@ -140,11 +139,11 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
 
     int aad_len=12;
     unsigned char* aad=(unsigned char*)malloc(aad_len);
-    memcpy(aad,all+ciphertext_len+iv_len,aad_len);
+    aad=iv;
 
     int tag_len=16;
     unsigned char* tag=(unsigned char*)malloc(tag_len);
-    memcpy(tag,all+ciphertext_len+iv_len+aad_len,tag_len);
+    memcpy(tag,all+ciphertext_len+iv_len,tag_len);
 
     /*cout<<"CIPHER"<<endl;
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len); 
@@ -157,7 +156,6 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
     cout<<"AAD"<<endl;
     BIO_dump_fp (stdout, (const char *)aad, iv_len); 
     cout<<"------- END ------------"<<endl;
-
     cout<<"AAD"<<endl;
     BIO_dump_fp (stdout, (const char *)tag, 16); */
 	
@@ -211,7 +209,6 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
 	//create key
 	unsigned char key_gcm[]="12345678901234561234567890123456";
 	struct cipher_txt c;
-
     int pt_len=sizeof(msg);
 	gcm_encrypt(msg, pt_len, key_gcm, &c);
 	
