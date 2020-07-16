@@ -6,6 +6,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
+#include <pthread.h>
 using namespace std;
 
 
@@ -26,23 +27,14 @@ struct cipher_txt{
 
 int handleErrors(){
 	printf("An error occourred.\n");
-	exit(1);
+	pthread_exit(NULL);
 }
 
-/*int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
-                unsigned char *aad, int aad_len,
-                unsigned char *key,
-                unsigned char *iv, int iv_len,
-                unsigned char *ciphertext,
-                unsigned char *tag)*/
 
-int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
-                unsigned char *key,
-                cipher_txt* c)
-{
+int gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,cipher_txt* c){
     EVP_CIPHER_CTX *ctx;
     unsigned char* ciphertext=(unsigned char*)malloc(plaintext_len);
-    int iv_len= EVP_CIPHER_iv_length(EVP_aes_128_gcm());
+    int iv_len= EVP_CIPHER_iv_length(EVP_aes_256_gcm());
     int aad_len=iv_len;
     //cout<<"The below numb should be 12:"<<endl;
     //cout<<iv_len<<endl;
@@ -61,7 +53,7 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
     if(!(ctx = EVP_CIPHER_CTX_new()))
         handleErrors();
     // Initialise the encryption operation.
-    if(1 != EVP_EncryptInit(ctx, EVP_aes_128_gcm(), key, iv))
+    if(1 != EVP_EncryptInit(ctx, EVP_aes_256_gcm(), key, iv))
         handleErrors();
      
     //Provide AAD 
@@ -131,8 +123,7 @@ int gcm_encrypt(unsigned char *plaintext, int plaintext_len,
                 unsigned char *iv, int iv_len,
                 unsigned char *plaintext)*/
 
-int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len)
-{
+int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len){
 
     int ciphertext_len=all_len-12-12-16; //iv add tag
     unsigned char *plaintext=(unsigned char*)malloc(ciphertext_len);
@@ -176,7 +167,7 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len)
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
         handleErrors();
-    if(!EVP_DecryptInit(ctx, EVP_aes_128_gcm(), key, iv))
+    if(!EVP_DecryptInit(ctx, EVP_aes_256_gcm(), key, iv))
         handleErrors();
 	//Provide any AAD data.
     if(!EVP_DecryptUpdate(ctx, NULL, &len, aad, aad_len))
@@ -211,16 +202,21 @@ int gcm_decrypt(unsigned char *key,unsigned char* all, int all_len)
 }
 int main (void)
 {
-	unsigned char msg[] = "Short message";
-        BIO_dump_fp (stdout, (const char *)msg, sizeof(msg));
+	unsigned char msg[] = "Dario";
+    BIO_dump_fp (stdout, (const char *)msg, sizeof(msg));
 	//create key
-	unsigned char key_gcm[]="1234567890123456";
+	unsigned char key_gcm[]="12345678901234561234567890123456";
 	struct cipher_txt c;
 
-        int pt_len=sizeof(msg);
+    int pt_len=sizeof(msg);
 	gcm_encrypt(msg, pt_len, key_gcm, &c);
+	
+	cout<<"DEBUG: all_len = "<<c.all_len<<endl;
+	cout<<"DEBUG: cphr = "<<c.len_cphr<<endl;
 	gcm_decrypt(key_gcm, c.all, c.all_len);
-
+	
 	cout<<sizeof(msg)<<endl;
+	
+	
 	return 1;
 }
