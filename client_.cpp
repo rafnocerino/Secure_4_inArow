@@ -15,6 +15,7 @@
 #include "gioco_v2.1.h"
 #include "digital_signature.h"
 #include "dh.h"
+#include "gcm.h"
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
@@ -40,12 +41,10 @@ uint8_t seq_numb;
 }*/
 
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
-	printf("Entrato.\n");
     socklen_t size = addr_size;
     int pos = 0;
     memset(buffer, 0, BUF_SIZE);
     received = recvfrom(socket, buffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)sv_addr, &size);
-	printf("Ricevuto.\n");
     if (received < SIZE_MESSAGE_ACK) {
         perror("There was an error during the reception of the ACK ! \n");
         close(socket);
@@ -224,20 +223,20 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 
 }
 
-void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user){
+void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user,unsigned char* key){
     bool check;
     int received;
     unsigned char buffer[BUF_SIZE];
 
-    send_exit(socket,buffer,user,++seq_numb,sv_addr_priv,addr_size);
+    send_exit(socket,buffer,user,++seq_numb,sv_addr_priv,addr_size,key);
 
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received); 
 	printf("ACK ricevuto!\n");   
-    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
         cout<<"ACK received after exit msg is altered, the app will be closed!"<<endl;
         // received an altered msg-->send malformed msg
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
         close(socket);
         exit(-1);
     }
@@ -248,7 +247,7 @@ void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user){
 
 }
 
-void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, const char* user) {
+void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, const char* user,unsigned char* key){
     unsigned char buffer[BUF_SIZE];
     int received, ret;
     socklen_t size;
@@ -275,17 +274,17 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 	printf("USER.LEN: %u.\n",user_len);
 
     // sent the update status used to notify the server that the client will wait challenge requests
-    send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, seq_numb, STATUS_WAITING, sv_addr_priv, addr_size);
+    send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, seq_numb, STATUS_WAITING, sv_addr_priv, addr_size,key);
 
     // now i wait the ack from the server
 
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received); 
 	printf("ACK ricevuto!\n");   
-    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
         cout<<"ACK received after first UpdateStatus is altered, the app will be closed!"<<endl;
         // received an altered msg-->send malformed msg
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
         close(socket);
         exit(-1);
     }
@@ -315,15 +314,15 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         // the client has to leave the wait mode but before has to notify the server that it is no more available for receive challenges
         // so it sends on its "associated port" of the server the update status (idle) msg
 
-        send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size);
+        send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size,key);
 
         receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);  
 
-        check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
-        if (!check) {
+        check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
+        if (!check){
             cout<<"ACK received after the updateStatus before idle is altered, app will be closed !"<<endl;
             // received an altered msg-->send malformed msg
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
             close(socket);
             exit(-1);
         }
@@ -333,12 +332,12 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     } else {
         // i have received a challenge request
 
-        check = check_challengeRequest(socket, buffer, received, OPCODE_CHALLENGE_REQUEST, 0, challenging_user, challenge_id, rcv_seq_numb, NULL);
-        if (!check) {
+        check = check_challengeRequest(socket, buffer, received, OPCODE_CHALLENGE_REQUEST, 0, challenging_user, challenge_id, rcv_seq_numb, NULL,key);
+        if (!check){
             cout<<"The challenge request msg received is altered, the app will be closed!"<<endl;
             // received an altered msg-->send malformed msg
             // in this case we have to send 2 malformed msg in order to notify our "associate thread" and the "challenging thread"
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_priv, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_priv, addr_size,key);
             //send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++rcv_seq_numb, sv_addr_challenge, addr_size);
 
             close(socket);
@@ -348,7 +347,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         // if i'm here means that the structure of the challenge request received is ok!
         // ACK must be sent
 
-        send_ACK(socket, buffer, OPCODE_ACK, rcv_seq_numb, sv_addr_challenge, addr_size);
+        send_ACK(socket, buffer, OPCODE_ACK, rcv_seq_numb, sv_addr_challenge, addr_size,key);
 
         cout << "Challenge request received from: " << challenging_user << " ! \n";
         cout << "Write ACCEPT to play otherwise write REFUSE \n";
@@ -364,16 +363,16 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         time.tv_usec = 0;
         setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
 
-        if (strcmp(chg_cmd, "ACCEPT") == 0) {
+        if (strcmp(chg_cmd, "ACCEPT") == 0){
             // we have accepted the challenge request
             //send_challengeAccepted(socket, buffer, OPCODE_CHALLENGE_ACCEPTED, ++rcv_seq_numb, sv_addr_challenge, addr_size, challenge_id);
-            send_challengeAccepted(socket, buffer, OPCODE_CHALLENGE_ACCEPTED, ++seq_numb, sv_addr_priv, addr_size, challenge_id);
+            send_challengeAccepted(socket, buffer, OPCODE_CHALLENGE_ACCEPTED, ++seq_numb, sv_addr_priv, addr_size, challenge_id,key);
 
             receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);  
-            check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+            check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
             if (!check) {
                 cout<<"The ACK received after sending challenge accepted is altered, the app will be closed!"<<endl;
-                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
                // send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++rcv_seq_numb, sv_addr_challenge, addr_size);
 
                 close(socket);
@@ -386,13 +385,29 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
             received = recvfrom(socket, buffer, SIZE_MESSAGE_CHALLENGE_START, 0, (struct sockaddr*)sv_addr_priv, &size);
 
-            // i have to distinguish if the received msg is challenge_start or a challenge_unavailable or also a malformed msg
-            memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+			unsigned char* temp = (unsigned char*)malloc(received - SIZE_IV - SIZE_TAG);
+   
+			if(!gcm_decrypt(key,buffer,received,temp)){
+		
+				cout<<"Errore: problema nella decifratura del messaggio di risposta alla request.\n"<<endl;
+
+				send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
+				close(socket);
+				exit(-1);
+			}
+	
+			//now i have to distinguish if i have received CHALLENGE_START, CHALLENGE REFUSED, CHALLENGE_UNAVAILABLE OR TIMER EXPIRED
+
+			memcpy(&rcv_opcode, temp, SIZE_OPCODE);
+			pos+=SIZE_OPCODE;
+			memcpy(&rcv_seq_numb,temp+pos,SIZE_OPCODE);
+    
+			free(temp);
 
             if(rcv_opcode != OPCODE_MALFORMED_MEX && rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE && rcv_opcode != OPCODE_CHALLENGE_START){
                 
                 cout<<"received an altered response after challenge accept msg, app will be closed !"<<endl;
-                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
                 //send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++rcv_seq_numb, sv_addr_challenge, addr_size);
                 close(socket);
                 exit(-1);
@@ -409,51 +424,51 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
             if (rcv_opcode == OPCODE_CHALLENGE_UNAVAILABLE) {
 
                 cout<<"The challenging user is no more available, now you will be redirected to main menu!"<<endl;
-                check = check_challengeUnavailable(socket, buffer, received, ++seq_numb);
+                check = check_challengeUnavailable(socket, buffer, received, ++seq_numb,key);
                 if (!check) {
                     cout<<"The challenge unavailable msg received is altered, the app will be closed!"<<endl;
-                    send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+                    send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
                     //send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++rcv_seq_numb, sv_addr_challenge, addr_size);
 
                     close(socket);
                     exit(-1);
                 }
 
-                send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size);
+                send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size,key);
             }
             if (rcv_opcode == OPCODE_CHALLENGE_START) {
                 cout<<"The challenging user is available, the match can start!"<<endl;
-                check = check_challengeStart(socket, buffer, received, ++seq_numb, adv_ip, adv_pubkey);
+                check = check_challengeStart(socket, buffer, received, ++seq_numb, adv_ip, adv_pubkey,key);
                 if (!check) {
                     cout<<"The challenge start msg is altered, the app will be closed!"<<endl;
-                    send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+                    send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
                     //send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++rcv_seq_numb, sv_addr_challenge, addr_size);
 
                     close(socket);
                     exit(-1);
                 }
 
-                send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size);
+                send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size,key);
                 // here we will insert a function call in order to start the game
                 
                 EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
                 
-				gameStart(adv_ip,1,pubkey_adv);            
+				//gameStart(adv_ip,1,pubkey_adv);            
 		}
         }
 
         // we have refused the challenge --> we send a challenge refused msg
         if (strcmp((char*)chg_cmd, "REFUSE") == 0){
 
-            send_challengeRefused(socket, buffer, ++seq_numb, challenge_id, sv_addr_priv, addr_size);
+            send_challengeRefused(socket, buffer, ++seq_numb, challenge_id, sv_addr_priv, addr_size,key);
 
             receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);  
 
-            check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+            check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
             if (!check) {
                 cout<<"The ACK received for challenge refused msg is altered, the app will be closed!"<<endl;
                 // in this case the malformed msg is sent only " to my personal thread" since the other thread is no more listening
-                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+                send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
 
                 close(socket);
                 exit(-1);
@@ -463,16 +478,16 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         // before leaving the wait mode i have to notify to my "associated" thread that i'm returning in idle mode
 
         size = addr_size;
-        send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size);
+        send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size,key);
 
         // now i wait the ack from the server
         receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);  
 
-        check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+        check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
         if (!check) {
             cout<<"The ACK received after last UpdateStatus before main menu is altered, the app will be closed!"<<endl;
             // received an altered msg-->send malformed msg
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
             close(socket);
             exit(-1);
         }
@@ -481,7 +496,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     }
 }
 
-void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,sockaddr_in* sv_addr_challenge,int addr_size,const char* user,char* available_users,int& avail_len){
+void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,sockaddr_in* sv_addr_challenge,int addr_size,const char* user,char* available_users,int& avail_len,unsigned char* key){
 
     unsigned char buffer[BUF_SIZE];
     int received, ret;
@@ -500,17 +515,17 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
     //the first thing that the client does is to notify the server that he wants to send challenge requests
     size=addr_size;
-    send_UpdateStatus(socket,buffer,user,user_len,OPCODE_UPDATE_STATUS,seq_numb,STATUS_CHALLENGING,sv_addr_priv,size);
+    send_UpdateStatus(socket,buffer,user,user_len,OPCODE_UPDATE_STATUS,seq_numb,STATUS_CHALLENGING,sv_addr_priv,size,key);
 
     // now i wait the ack from the server
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);
 
-    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
 
         cout<<"ACK received after first UpdateStatus is altered!"<<endl;
         // received an altered msg-->send malformed msg
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
         close(socket);
         exit(-1);
     }
@@ -521,18 +536,18 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
    
     //now i send the challenge request to the inserted user
-    send_challengeRequest(socket,sv_addr_priv,addr_size,buffer,user,challenged_user,++seq_numb,0);
+    send_challengeRequest(socket,sv_addr_priv,addr_size,buffer,user,challenged_user,++seq_numb,0,key);
 
     //wait for ACK
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);
 
-    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
-    if (!check) {
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
+    if(!check){
 
         cout<<"ACK received after Challenge Request is altered!"<<endl;
 
         // received an altered msg-->send malformed msg
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size,key);
         close(socket);
         exit(-1);
     }
@@ -545,18 +560,33 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
     pos = 0;
 
     received = recvfrom(socket, buffer, SIZE_MESSAGE_CHALLENGE_START , 0, (struct sockaddr*)sv_addr_challenge, &size);
+	
+	unsigned char* temp = (unsigned char*)malloc(received - SIZE_IV - SIZE_TAG);
    
+    if(!gcm_decrypt(key,buffer,received,temp)){
+		
+        cout<<"Errore: problema nella decifratura del messaggio di risposta alla request.\n"<<endl;
+
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
+        close(socket);
+        exit(-1);
+	}
+	
+	
+    
     //now i have to distinguish if i have received CHALLENGE_START, CHALLENGE REFUSED, CHALLENGE_UNAVAILABLE OR TIMER EXPIRED
 
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+    memcpy(&rcv_opcode, temp, SIZE_OPCODE);
     pos+=SIZE_OPCODE;
-    memcpy(&rcv_seq_numb,buffer+pos,SIZE_OPCODE);
+    memcpy(&rcv_seq_numb,temp+pos,SIZE_OPCODE);
+    
+    free(temp);
 
     if(rcv_opcode != OPCODE_MALFORMED_MEX  && rcv_opcode != OPCODE_CHALLENGE_REFUSED && rcv_opcode !=OPCODE_CHALLENGE_UNAVAILABLE && rcv_opcode != OPCODE_CHALLENGE_START){
 
         cout<<"After challenge reuqest, received an altered message !"<<endl;
 
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
         close(socket);
         exit(-1);
 
@@ -593,31 +623,31 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         
         cout<<"Challenge request refused !"<<endl;
 
-        check = check_challengeRefused(socket,buffer,received,rcv_seq_numb,&challenge_id);
+        check = check_challengeRefused(socket,buffer,received,rcv_seq_numb,&challenge_id,key);
         
         if(!check){
             cout<<"The challenge refused msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
             close(socket);
             exit(-1);
         }
 
-        send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);
+        send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size,key);
     }
 
-    if (rcv_opcode == OPCODE_CHALLENGE_UNAVAILABLE) {
+    if (rcv_opcode == OPCODE_CHALLENGE_UNAVAILABLE){
         
         cout<<"The challenged user is no more available !"<<endl;
 
-        check = check_challengeUnavailable(socket, buffer, received, ++seq_numb);
-        if (!check) {
+        check = check_challengeUnavailable(socket, buffer, received, ++seq_numb,key);
+        if(!check){
             cout<<"The challenge unavailable msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
             close(socket);
             exit(-1);
-            }
+        }
 
-        send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_priv, addr_size);
+        send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_priv, addr_size,key);
 
         //now i receive the updated list of available users
         int flag=0;
@@ -643,16 +673,16 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 			printf("Ricevuto chunk della available user list.\n");
 
             char list[255];
-            check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag);
+            check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag,key);
             
             if (!check) {
             cout<<"The user available list msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
             close(socket);
             exit(-1);
             }
 
-            send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_challenge, addr_size);         
+            send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_challenge, addr_size,key);         
 
             total_len+=len_list;
             temp=(char*)malloc(total_len);
@@ -660,7 +690,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
             memcpy(temp+result_size,list,len_list);
 
             free(result);
-            result = (char*)malloc(total_len);
+            result = (char*)malloc(total_len + 1);
             memcpy(result,temp,total_len);
             result_size=total_len;
 
@@ -669,6 +699,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
             }
 
         }
+        result[result_size] = '\0';
 		printf("Available User List: %s\n",result);
         /*BIO_dump_fp(stdout,(const char*)result,result_size);	
         avail_len=result_size;
@@ -680,37 +711,37 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
         cout<<"Challenge accepted! "<<endl;
 
-        check = check_challengeStart(socket, buffer, received, rcv_seq_numb, adv_ip, adv_pubkey);
+        check = check_challengeStart(socket, buffer, received, rcv_seq_numb, adv_ip, adv_pubkey,key);
         if (!check) {
             cout<<"The challenge start msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size);
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
             close(socket);
             exit(-1);
         }
 		
-		send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size);
+		send_ACK(socket, buffer, OPCODE_ACK,rcv_seq_numb, sv_addr_challenge, addr_size,key);
         // here we will insert a function call in order to start the game
         
         EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
         
-		gameStart(adv_ip,0,pubkey_adv);
+		//gameStart(adv_ip,0,pubkey_adv);
     }
     
 
     //if the client reach this point has to return to main menu --> has to notify the server the IDLE status
 
     size = addr_size;
-    send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size);
+    send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, ++seq_numb, STATUS_IDLE, sv_addr_priv, addr_size,key);
 
     //wait the ack
 
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);
     
-    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb);
+    check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
         cout<<"ACK received after last UpdateStatus is altered!"<<endl;
         // received an altered msg-->send malformed msg
-        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++seq_numb, sv_addr_priv, addr_size);
+        send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, ++seq_numb, sv_addr_priv, addr_size,key);
         close(socket);
         exit(-1);
     }
@@ -759,7 +790,7 @@ int main() {
 
     login(sock,&sv_addr_priv,user,server_pubkey,shared_secret,shared_secretLen);
 
-    while (1) {
+    while(1){
         
 		cout << "Inserisci un comando, per aiuto digita !help " << endl;
         
@@ -786,19 +817,19 @@ int main() {
         }
 
         if (strcmp(cmd, "!wait") == 0) {
-            wait(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user);
+            wait(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,shared_secret);
 
             continue;
         }
 
         if (strcmp(cmd, "!challenge") == 0) {        
-            challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len);
+            challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len,shared_secret);
 
             continue;
         }
 
         if (strcmp(cmd, "!exit") == 0) {
-            exit(sock,&sv_addr_priv,sizeof(sv_addr_priv),user);
+            exit(sock,&sv_addr_priv,sizeof(sv_addr_priv),user,shared_secret);
             break;
         }
 

@@ -13,6 +13,7 @@
 
 #include <openssl/evp.h>
 
+#include "gcm.h"
 #include "protocol_constant.h"
 using namespace std;
 
@@ -43,20 +44,32 @@ bool check_login(int socket,unsigned char* message, int messageLength,char* user
     return true;
 }
 
-bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb){
+bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb, unsigned char*  key){
     uint8_t rcv_seq_numb;
     uint8_t rcv_opcode;
     int pos = 0;
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc(SIZE_OPCODE + SIZE_SEQNUMBER);
 
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the ack has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&rcv_opcode, plaintext, SIZE_OPCODE);
     pos += SIZE_OPCODE;
 
 	if(rcv_opcode != exp_opcode){
+		free(plaintext);
 		return false;
 	}
    
 
-    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    memcpy(&rcv_seq_numb, plaintext + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
    
 	
@@ -67,58 +80,75 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
 	printf("-----------------------------------------\n");
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+		free(plaintext);
         // this means that the msg that i sent was modified during the forwarding
+		printf("Received malformed message !.\n");
         close(socket);
         pthread_exit(NULL);
     }
 
     if ( (rcv_seq_numb != exp_seq_numb) || (messageLength != SIZE_MESSAGE_ACK)) {
-        printf("Figli di troia.\n");
+        printf("Received altered ack message.\n");
+		free(plaintext);
 		return false;
     }
-
+	
+	free(plaintext);
     return true;
 }
 
 
-bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,char* challenging_user, int& challenge_id, uint8_t& rcv_seq_numb,char* challengedUser){
+bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength, uint8_t exp_opcode, uint8_t exp_seq_numb,char* challenging_user, int& challenge_id, uint8_t& rcv_seq_numb,char* challengedUser,unsigned char* key){
     uint8_t rcv_opcode;
     int pos = 0;
     uint8_t data_len;
     uint8_t seq;
     int id;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge request has given negative result.\n");
+		return false;
+	}
+	
+	
+    memcpy(&rcv_opcode, plaintext, SIZE_OPCODE);
     pos += SIZE_OPCODE;
     
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         // this means that the msg that i sent was modified during the forwarding
+		free(plaintext);
         close(socket);
         pthread_exit(NULL);
     }
 
-	if (rcv_opcode != exp_opcode) {
+	if (rcv_opcode != exp_opcode){
+		free(plaintext);
         return false;
     }
 
-    memcpy(&seq, buffer + pos, SIZE_SEQNUMBER);
+    memcpy(&seq, plaintext + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
     rcv_seq_numb = seq;
 
-    memcpy(&id, buffer + pos, SIZE_CHALLENGE_NUMBER);
+    memcpy(&id, plaintext + pos, SIZE_CHALLENGE_NUMBER);
     pos += SIZE_CHALLENGE_NUMBER;
     challenge_id = id;
 
-    memcpy(&data_len, buffer + pos, SIZE_LEN);
+    memcpy(&data_len, plaintext + pos, SIZE_LEN);
     pos += sizeof(data_len);
 
-    memcpy(challenging_user,buffer+pos,data_len);
+    memcpy(challenging_user,plaintext+pos,data_len);
     pos+=data_len;
 
     strtok((char*)challenging_user, ";");
-    
-	//dario;raffa'\0'
-	//dario'\0';raffa'\0'
+   
 
     int flush_len = strlen((char*)challenging_user) + 1;
 	
@@ -129,48 +159,84 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
 	
     memset(challenging_user + flush_len, 0, 255 - flush_len);
 
+    messageLength -= SIZE_TAG + SIZE_IV;
+
     //prestare attenzione alla formula per il controllo della len
-    if (data_len != messageLength - SIZE_OPCODE - SIZE_SEQNUMBER - SIZE_CHALLENGE_NUMBER - SIZE_LEN ) {
+    if(data_len != messageLength - SIZE_OPCODE - SIZE_SEQNUMBER - SIZE_CHALLENGE_NUMBER - SIZE_LEN ){
+		
+		free(plaintext);
         return false;
     }
-
+	
+	free(plaintext);
     return true;
 }
 
-bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb) {
+bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLength, uint8_t exp_seq_numb, unsigned char* key) {
     uint8_t rcv_opcode;
     uint8_t rcv_seq_numb;
     int pos = 0;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_UNAVAILABLE);
 
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge unavailable has given negative result.\n");
+		return false;
+	}
+	
+	
+    memcpy(&rcv_opcode, plaintext, SIZE_OPCODE);
     pos += SIZE_OPCODE;
    
 	if(rcv_opcode == OPCODE_MALFORMED_MEX) {
-        close(socket);
+		
+		free(plaintext);
+        printf("Received a malformed message ! \n");
+		close(socket);
         pthread_exit(NULL);
-    }
+    	}
 
 	if(rcv_opcode != OPCODE_CHALLENGE_UNAVAILABLE){
+		free(plaintext);
 		return false;
 	}	
 
-    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    memcpy(&rcv_seq_numb, plaintext + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
 
 
     if ((exp_seq_numb != rcv_seq_numb) || messageLength != SIZE_MESSAGE_CHALLENGE_UNAVAILABLE) {
+		free(plaintext);
         return false;
     }
-
+	
+	free(plaintext);
     return true;
 }
 
-bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,uint8_t exp_seq_numb,int *challengeId){
+bool check_challengeRefused(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,int *challengeId,unsigned char* key){
     uint8_t rcv_opcode;
     uint8_t rcv_seq_numb;
     int pos = 0;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_REFUSED);
 
-    memcpy(&rcv_opcode, buffer, SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge refused has given negative result.\n");
+		return false;
+	}
+	
+    memcpy(&rcv_opcode, plaintext, SIZE_OPCODE);
     pos += SIZE_OPCODE;
 
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
@@ -179,48 +245,65 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLenght,
     }
 
 	if(rcv_opcode != OPCODE_CHALLENGE_REFUSED){
+		free(plaintext);
 		return false;
 	}
     
-    memcpy(&rcv_seq_numb, buffer + pos, SIZE_SEQNUMBER);
+    memcpy(&rcv_seq_numb, plaintext + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
    
-	memcpy(challengeId,buffer + pos,SIZE_CHALLENGE_NUMBER);
+	memcpy(challengeId,plaintext + pos,SIZE_CHALLENGE_NUMBER);
 	pos += SIZE_CHALLENGE_NUMBER;
 
-     if ((exp_seq_numb != rcv_seq_numb) || (messageLenght != SIZE_MESSAGE_CHALLENGE_REFUSED)) {
-        return false;
+     if ((exp_seq_numb != rcv_seq_numb) || (messageLength != SIZE_MESSAGE_CHALLENGE_REFUSED)) {
+        free(plaintext);
+		return false;
     }
-
+	
+	free(plaintext);
     return true;
 }
 
-bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,unsigned char* ip,unsigned char* adv_pubkey){
+bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,uint8_t exp_seq_numb,unsigned char* ip,unsigned char* adv_pubkey,unsigned char* key){
 
     uint8_t rcv_opcode;
     uint8_t rcv_seq_numb;
     uint8_t len;
     int pos=0;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
-    memcpy(&rcv_opcode,buffer,SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge start has given negative result.\n");
+		return false;
+	}
+	
+    memcpy(&rcv_opcode,plaintext,SIZE_OPCODE);
     pos+=SIZE_OPCODE;
 
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+		free(plaintext);
         close(socket);
         pthread_exit(NULL);
     }
 
 	if(rcv_opcode != OPCODE_CHALLENGE_START){
+		free(plaintext);
 		return false;
 	}
 
-    memcpy(&rcv_seq_numb,buffer+pos,SIZE_SEQNUMBER);
+    memcpy(&rcv_seq_numb,plaintext+pos,SIZE_SEQNUMBER);
     pos+=SIZE_SEQNUMBER;
-    memcpy(&len,buffer+pos,SIZE_LEN);
+    memcpy(&len,plaintext+pos,SIZE_LEN);
     pos+=SIZE_LEN;
-    memcpy(adv_pubkey,buffer+pos,SIZE_PUBLIC_KEY);
+    memcpy(adv_pubkey,plaintext+pos,SIZE_PUBLIC_KEY);
     pos+=SIZE_PUBLIC_KEY;
-    memcpy(ip,buffer+pos,len);
+    memcpy(ip,plaintext+pos,len);
     pos+=len;
 
 	printf("------Challenge Start Check------\n");
@@ -232,17 +315,18 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 	printf("---------------------------------\n");
 	
 
-
+    messageLength -= SIZE_TAG + SIZE_IV;
 
     if((rcv_seq_numb != exp_seq_numb) || (messageLength != pos)){
+		free(plaintext);
         return false;
     }
     
-
+	free(plaintext);
     return true;
 }
 
-bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t& statusCode,char* username){
+bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,uint8_t& statusCode,char* username, unsigned char* key){
 	
 	uint8_t opcodeMex;
 	uint8_t seqNumMex;
@@ -251,30 +335,44 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 	
 	int pos = 0;	
 	
-	memcpy(&opcodeMex,message,SIZE_OPCODE);
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
+
+
+    check=gcm_decrypt(key,message,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the update status has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&opcodeMex,plaintext,SIZE_OPCODE);
 	pos += SIZE_OPCODE;
 
 	if(opcodeMex == OPCODE_MALFORMED_MEX){
+		free(plaintext);
 		close(socket);		
 		pthread_exit(NULL);
 	}
 
 	//Controllo del opcode	
-	if(opcodeMex != OPCODE_UPDATE_STATUS)
+	if(opcodeMex != OPCODE_UPDATE_STATUS){
+		free(plaintext);
 		return false;
-
-	memcpy(&seqNumMex,message + pos,SIZE_SEQNUMBER);
+	}
+	memcpy(&seqNumMex,plaintext + pos,SIZE_SEQNUMBER);
 	pos += SIZE_SEQNUMBER;
 
-	memcpy(&statusCodeMex,message + pos,SIZE_STATUS_CODE);
+	memcpy(&statusCodeMex,plaintext + pos,SIZE_STATUS_CODE);
 	pos += SIZE_STATUS_CODE;
 	statusCode = statusCodeMex;
 		
-	memcpy(&lenMex,message + pos,SIZE_LEN);
+	memcpy(&lenMex,plaintext + pos,SIZE_LEN);
 	pos += SIZE_LEN;
 
 
-	memcpy(username,message + pos,lenMex);
+	memcpy(username,plaintext + pos,lenMex);
 	pos += lenMex;
 
 
@@ -286,45 +384,149 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 	printf("messageLenght -> %d\n", messageLength);
 
 	//Controllo della lunghezza del messaggio
-	if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS)
+	/*if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS){
+		free(plaintext);
 		return false;
-
+	}*/
+	
+	messageLength -= SIZE_IV + SIZE_TAG;
 
 	if(seqNumMex != expectedSeqNum){
+		free(plaintext);
 		return false;
 	}
 	
 	//Controllo dello status code
-	if(statusCodeMex != STATUS_CHALLENGING && statusCodeMex != STATUS_IDLE && statusCodeMex != STATUS_WAITING)
+	if(statusCodeMex != STATUS_CHALLENGING && statusCodeMex != STATUS_IDLE && statusCodeMex != STATUS_WAITING){
+		free(plaintext);
 		return false;
+	}
 	
 
-	if(messageLength != SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN + lenMex)
+	if(messageLength != SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN + lenMex){
+		free(plaintext);
 		return false;
-
+	}
+	
+	free(plaintext);
 	return true;
 }
 
-bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username){
+bool check_firstUpdateStatus(int socket,unsigned char* message,int messageLength,uint8_t& newSeqNum,uint8_t& statusCode,char* username, unsigned char* key){
+	
+	uint8_t opcodeMex;
+	uint8_t seqNumMex;
+	uint8_t statusCodeMex;
+	uint8_t lenMex;
+	
+	int pos = 0;	
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
+
+
+    check=gcm_decrypt(key,message,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the update status has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&opcodeMex,plaintext,SIZE_OPCODE);
+	pos += SIZE_OPCODE;
+
+	if(opcodeMex == OPCODE_MALFORMED_MEX){
+		free(plaintext);
+		close(socket);		
+		pthread_exit(NULL);
+	}
+
+	//Controllo del opcode	
+	if(opcodeMex != OPCODE_UPDATE_STATUS){
+		free(plaintext);
+		return false;
+	}
+	memcpy(&seqNumMex,plaintext + pos,SIZE_SEQNUMBER);
+	pos += SIZE_SEQNUMBER;
+	newSeqNum = seqNumMex;
+
+	memcpy(&statusCodeMex,plaintext + pos,SIZE_STATUS_CODE);
+	pos += SIZE_STATUS_CODE;
+	statusCode = statusCodeMex;
+		
+	memcpy(&lenMex,plaintext + pos,SIZE_LEN);
+	pos += SIZE_LEN;
+
+
+	memcpy(username,plaintext + pos,lenMex);
+	pos += lenMex;
+	
+	messageLength -= SIZE_IV + SIZE_TAG;
+
+
+	printf("opcode -> %u\n",opcodeMex);
+	printf("RCV S.N. -> %u | EX. S.N. -> %u \n",seqNumMex,newSeqNum);
+	printf("status code -> %u\n",statusCodeMex);
+	printf("LEN -> %u\n",lenMex);
+	printf("Username -> %s \n",username);
+	printf("messageLenght -> %d\n", messageLength);
+
+	//Controllo della lunghezza del messaggio
+	/*if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS){
+		free(plaintext);
+		return false;
+	}*/
+	
+	//Controllo dello status code
+	if(statusCodeMex != STATUS_CHALLENGING && statusCodeMex != STATUS_IDLE && statusCodeMex != STATUS_WAITING){
+		free(plaintext);
+		return false;
+	}
+
+	if(messageLength != SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN + lenMex){
+		free(plaintext);
+		return false;
+	}
+	
+	free(plaintext);
+	return true;
+}
+
+bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expectedSeqNum,char* username,unsigned char* key){
 	uint8_t actualOpcode = 10;
 	uint8_t actualSeqNum = 10;
 	uint8_t actualLength = 10;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
 
-	memcpy(&actualOpcode,message,SIZE_OPCODE);
+
+    check=gcm_decrypt(key,message,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge exit has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&actualOpcode,plaintext,SIZE_OPCODE);
 
 	if(actualOpcode == OPCODE_MALFORMED_MEX){
+		free(plaintext);
 		close(socket);
 		pthread_exit(NULL);
 	}
 
 	if(actualOpcode != OPCODE_EXIT){
+		free(plaintext);
 		return false;
 	}
 
 
-	memcpy(&actualSeqNum,message + SIZE_OPCODE, SIZE_SEQNUMBER);
-	memcpy(&actualLength,message + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
-	memcpy(username,message + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
+	memcpy(&actualSeqNum,plaintext + SIZE_OPCODE, SIZE_SEQNUMBER);
+	memcpy(&actualLength,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
+	memcpy(username,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
 
 	printf("-------Check-exit-------------------------\n");
 	printf("S.N. EXP = %u | RCV. = %u \n",expectedSeqNum,actualSeqNum);
@@ -332,45 +534,124 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 	printf("Lenght username = %u\n", actualLength);
 	printf("---------------------------------------\n");
 	
+	messageLength -= SIZE_IV + SIZE_TAG;
+
 	if(actualSeqNum != expectedSeqNum){
+		free(plaintext);
 		return false;
 	}
 	
 	
-	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN)){  // L'uno in più è per il carattere di terminazione della stringa
+	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN)){  
+		free(plaintext);
 		return false;
 	}
 
-	
+	free(plaintext);
 	return true;
 }
 
-bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber){
-	uint8_t actualOpcode;
-	uint8_t seqNumMex;
+bool check_firstExit(int socket,unsigned char* message,int messageLength,uint8_t& seqNum,char* username,unsigned char* key){
+	uint8_t actualOpcode = 10;
+	uint8_t actualSeqNum = 10;
+	uint8_t actualLength = 10;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
 
-	memcpy(&actualOpcode,buffer,SIZE_OPCODE);
+
+    check=gcm_decrypt(key,message,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge exit has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&actualOpcode,plaintext,SIZE_OPCODE);
 
 	if(actualOpcode == OPCODE_MALFORMED_MEX){
+		free(plaintext);
+		close(socket);
+		pthread_exit(NULL);
+	}
+
+	if(actualOpcode != OPCODE_EXIT){
+		free(plaintext);
+		return false;
+	}
+
+
+	memcpy(&actualSeqNum,plaintext + SIZE_OPCODE, SIZE_SEQNUMBER);
+	memcpy(&actualLength,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
+	memcpy(username,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
+
+	seqNum = actualSeqNum;
+	
+	messageLength -= SIZE_IV + SIZE_TAG;
+
+	printf("-------Check-First-exit-------------------------\n");
+	printf("Message Recived Lenght = %d\n",messageLength);
+	printf("Lenght username = %u\n", actualLength);
+	printf("---------------------------------------\n");
+	
+	
+	if(actualLength != messageLength - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN)){  
+		free(plaintext);
+		return false;
+	}
+
+	free(plaintext);
+	return true;
+}
+
+bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,uint8_t expectedSeqNum,int* challengeNumber, unsigned char* key){
+	uint8_t actualOpcode;
+	uint8_t seqNumMex;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_ACCEPTED);
+
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the challenge accepted has given negative result.\n");
+		return false;
+	}
+	
+	memcpy(&actualOpcode,plaintext,SIZE_OPCODE);
+
+	if(actualOpcode == OPCODE_MALFORMED_MEX){
+		free(plaintext);
 		close(socket);
 		pthread_exit(NULL);
 	}	
 
 	if(actualOpcode != OPCODE_CHALLENGE_ACCEPTED){
+		free(plaintext);
 		return false;
 	}
 	
-	memcpy(&seqNumMex,buffer + SIZE_OPCODE,SIZE_SEQNUMBER);
+	memcpy(&seqNumMex,plaintext + SIZE_OPCODE,SIZE_SEQNUMBER);
 	if(seqNumMex != expectedSeqNum){
+		free(plaintext);
+		return false;
+	}
+	
+	if(messageLength != SIZE_MESSAGE_CHALLENGE_ACCEPTED){
+		free(plaintext);
 		return false;
 	}
 
-	memcpy(challengeNumber, buffer + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_CHALLENGE_NUMBER);
-
+	memcpy(challengeNumber, plaintext + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_CHALLENGE_NUMBER);
+	
+	free(plaintext);
 	return true;
 }
 
-bool check_available_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag){
+bool check_available_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t exp_seq_numb,char* available_users,int& flag, unsigned char* key){
 
     uint8_t opcodeMex;
 	uint8_t seqNumMex;
@@ -378,28 +659,42 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
     uint8_t fl;
 
     int pos=0;
+	
+	bool check;
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
-    memcpy(&opcodeMex,buffer,SIZE_OPCODE);
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);	
+	if(!check){
+		
+		free(plaintext);
+		printf("The decryption of the available user list has given negative result.\n");
+		return false;
+	}
+
+    memcpy(&opcodeMex,plaintext,SIZE_OPCODE);
     pos+=SIZE_OPCODE;
 
     if (opcodeMex == OPCODE_MALFORMED_MEX) {
+		free(plaintext);
         close(socket);
         pthread_exit(NULL);
     }
 
 	if(opcodeMex != OPCODE_AVAILABLE_USER_LIST){
+		free(plaintext);
 		return false;
 	}
 
-    memcpy(&seqNumMex,buffer+pos,SIZE_SEQNUMBER);
+    memcpy(&seqNumMex,plaintext+pos,SIZE_SEQNUMBER);
     pos+=SIZE_SEQNUMBER;
-    memcpy(&lenMex,buffer+pos,SIZE_LEN);
+    memcpy(&lenMex,plaintext+pos,SIZE_LEN);
     pos+=SIZE_LEN;
     list_len=lenMex;
-    memcpy(&fl,buffer+pos,SIZE_LAST_FLAG);
+    memcpy(&fl,plaintext+pos,SIZE_LAST_FLAG);
     pos+=SIZE_LAST_FLAG;
     flag=fl;
-    memcpy(available_users,buffer+pos,lenMex);
+    memcpy(available_users,plaintext+pos,lenMex);
     pos+=lenMex;
 
 
@@ -411,12 +706,14 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
 	printf("POS = %d\n",pos);
 	printf("---------------------------------\n");
 
+    messageLength -= SIZE_TAG + SIZE_IV; 
 
     if((seqNumMex != exp_seq_numb) || (messageLength != pos)){
+		free(plaintext);
         return false;
     }
     
-
+	free(plaintext);
     return true;
 }
 

@@ -8,6 +8,8 @@ struct userDataStructure{
 	int status;
 	//	IP address
 	struct sockaddr_in IPaddress;
+	// Session Key
+	unsigned char* key;
 };
 
 pthread_mutex_t lockUsersDataStructure = PTHREAD_MUTEX_INITIALIZER;
@@ -117,4 +119,25 @@ void printUserDataStructure(){
 		inet_ntop( AF_INET, &usersDataStructure.at(i).IPaddress.sin_addr, buffer, sizeof( buffer ));
 		cout<<usersDataStructure.at(i).username<<","<<usersDataStructure.at(i).status<<","<<buffer<<"\n";	
 	}
+}
+
+bool addKeyFromUsername(unsigned char* key,string username){
+	int index = bSearchUserDataStructureFromUsername(username);
+	if(index == -1){
+		perror("Errore: utente non trovato.\n");
+		pthread_exit(NULL);
+	}
+	usersDataStructure.at(index).key = key;
+	return true;
+}
+
+unsigned char* getKeyFromUsername(string username){
+	unsigned char* key;
+	int index = bSearchUserDataStructureFromUsername(username);
+	if(index == -1){
+		perror("Errore: utente non trovato.\n");
+		pthread_exit(NULL);
+	}
+	key = usersDataStructure.at(index).key;
+	return key;
 }
