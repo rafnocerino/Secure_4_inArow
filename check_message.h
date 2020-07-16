@@ -21,3 +21,4 @@ bool check_certificateMessage(unsigned char* certificate_buffer,int messageLengt
 bool check_signatureMessageClient(unsigned char* buffer,int messageLength,unsigned char* random_data,unsigned char* signature);
 bool check_DHmessage(unsigned char* buffer,int messageLength,int pkey_len,unsigned char* peer_dh_pubkey);
 bool check_DHmessage_info(unsigned char* buffer, int messageLength,int& pkey_len);
+bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t& seq_numb,char* available_users,int& flag, unsigned char* key);

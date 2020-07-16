@@ -40,6 +40,63 @@ uint8_t seq_numb;
 	return pubkey;
 }*/
 
+/*void received_availableUserList(){
+	
+	int flag=0;
+        int len_list=0;
+        int total_len=0;
+        char* result = (char*)malloc(255);
+		if(!result){
+			cout<<"There was an error during the allocation of the memory for the available user list! " <<endl;
+		}
+		
+        int result_size=0;
+        char* temp;
+        while(true){
+
+            memset(buffer, 0, BUF_SIZE);
+            size = addr_size;
+            pos = 0;
+
+
+
+            received = recvfrom(socket, buffer, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)sv_addr_challenge, &size);
+            
+			printf("Ricevuto chunk della available user list.\n");
+
+            char list[255];
+            check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag,key);
+            
+            if (!check) {
+            cout<<"The user available list msg is altered, the app will be closed !"<<endl;
+            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
+            close(socket);
+            exit(-1);
+            }
+
+            send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_challenge, addr_size,key);         
+
+            total_len+=len_list;
+            temp=(char*)malloc(total_len);
+            memcpy(temp,result,result_size);
+            memcpy(temp+result_size,list,len_list);
+
+            free(result);
+            result = (char*)malloc(total_len + 1);
+            memcpy(result,temp,total_len);
+            result_size=total_len;
+
+            if(flag==1){
+                break;
+            }
+
+        }
+        result[result_size] = '\0';
+		printf("Available User List: %s\n",result);
+	
+	
+}*/
+
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
     socklen_t size = addr_size;
     int pos = 0;
@@ -220,6 +277,60 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 	cout<<"DEBUG: chiave di sessione ottenuta di lungezza = "<<shared_secretLen<<endl;
 	cout<<"DEBUG: chiave di sessione ottenuta = "<<endl;
 	BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
+	
+	int flag=0;
+    int len_list=0;
+        int total_len=0;
+        char* result = (char*)malloc(255);
+		if(!result){
+			cout<<"There was an error during the allocation of the memory for the available user list! " <<endl;
+		}
+		
+        int result_size=0;
+        char* temp;
+        while(true){
+
+            memset(buf, 0, BUF_SIZE);
+            socklen_t size_temp = sizeof(*serverPrivAddress);
+            pos = 0;
+
+
+
+            received = recvfrom(sock, buf, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)serverPrivAddress, &size);
+            
+			printf("Ricevuto chunk della available user list.\n");
+
+            char list[255];
+            check = check_FirstAvailable_userList(sock,buf,len_list,received,seq_numb,list,flag,shared_secret);
+            
+            if (!check) {
+            cout<<"The user available list msg is altered, the app will be closed !"<<endl;
+            send_malformedMsg(sock, buf, OPCODE_MALFORMED_MEX, seq_numb, serverPrivAddress, size_temp,shared_secret);
+            close(sock);
+            exit(-1);
+            }
+
+            send_ACK(sock, buf, OPCODE_ACK,seq_numb, serverPrivAddress, size_temp,shared_secret);         
+
+            total_len+=len_list;
+            temp=(char*)malloc(total_len);
+            memcpy(temp,result,result_size);
+            memcpy(temp+result_size,list,len_list);
+
+            free(result);
+            result = (char*)malloc(total_len + 1);
+            memcpy(result,temp,total_len);
+            result_size=total_len;
+
+            if(flag==1){
+                break;
+            }
+
+        }
+        result[result_size] = '\0';
+		printf("Available User List: %s\n",result);
+	
+	
 
 }
 

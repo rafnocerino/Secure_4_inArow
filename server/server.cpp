@@ -238,7 +238,7 @@ void* serveClient(void *arg){
 	uint8_t seqNum = 0;	
 	//Inizializzazione in maniera casuale del sequence number per i messaggi inviati dal server	utilizzando OpenSSL
 	RAND_poll();
-    RAND_bytes((unsigned char*)&seq_numb,SIZE_SEQNUMBER);
+    RAND_bytes((unsigned char*)&seqNum,SIZE_SEQNUMBER);
 	char* username;
 	username = (char *)malloc(255);
 	int challengeId = -1;	
@@ -318,12 +318,11 @@ void* serveClient(void *arg){
 							addKeyFromUsername(sessionKey,username);	
 							
 							//Invio della Available User List:
-							if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress)),sessionKey){
+							if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress),sessionKey)){
 							
 				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
 	
 				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
-						seqNum = 0;
 						uint8_t statusCode = STATUS_IDLE;
 						bool exitORerror = false;
 						unsigned char* ip = (unsigned char*)malloc(SIZE_IP_ADDRESS);

@@ -686,3 +686,88 @@ bool check_DHmessage_info(unsigned char* buffer, int messageLength,int& pkey_len
 	
 	return true;
 }
+
+bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_len,int messageLength,uint8_t& seq_numb,char* available_users,int& flag, unsigned char* key){
+    
+    uint8_t opcodeMex;
+    uint8_t seqNumMex;
+    uint8_t lenMex;
+    uint8_t fl;
+
+ 
+
+    int pos=0;
+    
+    bool check;
+    unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
+
+ 
+
+
+    check=gcm_decrypt(key,buffer,messageLength,plaintext);    
+    if(!check){
+        
+        free(plaintext);
+        printf("The decryption of the available user list has given negative result.\n");
+        return false;
+    }
+
+ 
+
+    memcpy(&opcodeMex,plaintext,SIZE_OPCODE);
+    pos+=SIZE_OPCODE;
+
+ 
+
+    if (opcodeMex == OPCODE_MALFORMED_MEX) {
+        free(plaintext);
+        close(socket);
+        pthread_exit(NULL);
+    }
+
+ 
+
+    if(opcodeMex != OPCODE_AVAILABLE_USER_LIST){
+        free(plaintext);
+        return false;
+    }
+
+ 
+
+    memcpy(&seqNumMex,plaintext+pos,SIZE_SEQNUMBER);
+    pos+=SIZE_SEQNUMBER;
+    seq_numb=seqNumMex;
+    
+    memcpy(&lenMex,plaintext+pos,SIZE_LEN);
+    pos+=SIZE_LEN;
+    list_len=lenMex;
+    memcpy(&fl,plaintext+pos,SIZE_LAST_FLAG);
+    pos+=SIZE_LAST_FLAG;
+    flag=fl;
+    memcpy(available_users,plaintext+pos,lenMex);
+    pos+=lenMex;
+
+ 
+
+
+    printf("------User List Check------\n");
+    printf("OPCODE -> %u.\n",opcodeMex);
+    printf("LUNGHEZZA CHUNK = %u.\n",lenMex);
+    printf("MESSAGE LENGTH = %d\n",messageLength);
+    printf("POS = %d\n",pos);
+    printf("---------------------------------\n");
+
+ 
+
+    messageLength -= SIZE_TAG + SIZE_IV; 
+
+ 
+
+    if(messageLength != pos){
+        free(plaintext);
+        return false;
+    }
+    
+    free(plaintext);
+    return true;
+}
