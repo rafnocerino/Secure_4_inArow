@@ -111,13 +111,13 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	return true;
 }
 
-bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,EVP_PKEY* pubkey){
+bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,EVP_PKEY* pubkey, bool gameCall){
    
    int ret; // used for return values
   
    if(pubkey == NULL){
 		// read the peer's public key file from keyboard:
-		string pubkey_file_name ="../public keys/";
+		string pubkey_file_name =(gameCall==false?"../public keys/":"./public keys/");
 		pubkey_file_name+=reinterpret_cast<const char*>(userName);
 		pubkey_file_name+="_public.pem";
 

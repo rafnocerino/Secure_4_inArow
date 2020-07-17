@@ -18,6 +18,11 @@ int handleErrors(){
 }
 
 void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,cipher_txt* c){
+    cout<<"GCM OUTPUT PLAIN LEN"<<endl;
+    cout<<plaintext_len<<endl;
+    if(key==NULL)
+	cout<<"Chiave vuota"<<endl;
+	
     EVP_CIPHER_CTX *ctx;
     unsigned char* ciphertext=(unsigned char*)malloc(plaintext_len);
     //int iv_len= SIZE_IV;
@@ -76,7 +81,8 @@ void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,
     //memcpy(c->all+ciphertext_len+iv_len, aad, iv_len);
     memcpy(c->all+ciphertext_len+SIZE_IV, tag, SIZE_TAG);
     c->all_len = ciphertext_len + SIZE_IV + SIZE_TAG;
-    
+    cout<<"------------ CIPHER LEN --------"<<endl;
+    cout<<ciphertext_len<<endl;
     cout<<"CIPHER"<<endl;
     BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len); 
     //BIO_dump_fp (stdout, (const char *)c->cphr, c->len_cphr); 

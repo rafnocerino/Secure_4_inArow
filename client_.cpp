@@ -358,7 +358,7 @@ void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user,unsigne
 
 }
 
-void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, const char* user,unsigned char* key){
+void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sockaddr_in* sv_addr_challenge, int addr_size, char* user,unsigned char* key){
     unsigned char buffer[BUF_SIZE];
     int received, ret;
     socklen_t size;
@@ -370,7 +370,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     char challenging_user[255];
     char chg_cmd[6];
     unsigned char adv_ip[SIZE_IP_ADDRESS];
-    unsigned char adv_pubkey[257];
+    unsigned char adv_pubkey[2049];
     int challenge_id;
     bool check;
     uint8_t user_len;
@@ -561,10 +561,11 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
                 send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size,key);
                 // here we will insert a function call in order to start the game
-                
+                //BIO_dump_fp(stdout, (const char*) adv_pubkey, SIZE_PUBLIC_KEY);
                 EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
-                
-				//gameStart(adv_ip,1,pubkey_adv);            
+                if(pubkey_adv==NULL)
+			cout<<"AAAAAAAAAAAAAAAAAAAAAAAAAAAAA chiave vouta"<<endl;
+		gameStart(adv_ip,1,pubkey_adv,user);            
 		}
         }
 
@@ -607,7 +608,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     }
 }
 
-void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,sockaddr_in* sv_addr_challenge,int addr_size,const char* user,char* available_users,int& avail_len,unsigned char* key){
+void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,sockaddr_in* sv_addr_challenge,int addr_size,char* user,char* available_users,int& avail_len,unsigned char* key){
 
     unsigned char buffer[BUF_SIZE];
     int received, ret;
@@ -835,7 +836,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         
         EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
         
-		//gameStart(adv_ip,0,pubkey_adv);
+	gameStart(adv_ip,0,pubkey_adv,user);
     }
     
 

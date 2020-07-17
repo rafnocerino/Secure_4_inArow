@@ -321,8 +321,9 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
     ret = sendto(socket, c.all, c.all_len, 0, (struct sockaddr*)sv_addr, addr_size);
 	
 	printf("ret -> %d\n",ret);
+	//BIO_dump_fp(stdout,(const char*)c.all,c.all_len);
 	BIO_dump_fp(stdout,(const char*)buffer,pos);
-
+	printf("Sono la porta magica %d\n",sv_addr->sin_port);
     if (ret < (int)SIZE_MESSAGE_ACK) {
         perror("There was an error during the sending of the ACK \n");
         close(socket);
