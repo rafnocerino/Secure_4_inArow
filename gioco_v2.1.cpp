@@ -8,9 +8,6 @@
  - WAIT THE MSG
  - ANAYLZE MALFORMED
  - SEND ACK/MALFORMED
-
-
-
 */
 
 
@@ -74,6 +71,10 @@ int check_move(unsigned char* buffer, int messageLength, uint8_t* expectedSeqNum
 	int playerMoveColumn;
 	bool check; 
 	unsigned char* plaintext=(unsigned char*)malloc(BUF_SIZE);
+	if(!plaintext){
+		perror("Malloc error");
+		exit(-1);
+	}
 	memset(plaintext,0,BUF_SIZE);
 
 	cout<<"Messaggio cifrato ricevuto"<<endl;
@@ -120,6 +121,10 @@ void wait_ACK(int sd, sockaddr_in* sock, uint8_t sq_numb)
 	int ret;
 	socklen_t len=sizeof(*sock);
 	unsigned char* buffer=(unsigned char*)malloc(1024); //
+	if(!buffer){
+		perror("Malloc error");
+		exit(-1);
+	}	
 	memset(buffer,0,1024);	
 	tv.tv_sec = 120; //after 120 sec u
 	tv.tv_usec= 0 ;
@@ -281,11 +286,18 @@ int waitColumnValue(int sd, sockaddr_in* adversary_socket, uint8_t* seq_numb_exp
 		- check for buffer overflows
 		- Find the fist available row where to insert our symbol
 */
-int checkMove(char gameMatrix[6][7], int move)
+int checkMove(char gameMatrix[][7], int move)
 {
+	/*cout<<"SONO QUI"<<endl;
+	printGame(gameMatrix);
+	cout<<"Elemento e mossa"<<endl;
+	cout<<gameMatrix[4][0]<<endl;
+	cout<<move<<endl;
+	cout<<gameMatrix[5][move]<<endl;*/
+	
 	if((move<7) && (move>=0))
 	{
-		for(int j=6;j>=0;j--)
+		for(int j=5;j>=0;j--)
 		{
 			if(gameMatrix[j][move]=='*')
 				return j;
@@ -402,6 +414,7 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 	int rowMove=-1;
 	unsigned char buffer[BUF_SIZE];
 	int received;
+	//gameMatrix[0][0]='*';
 
 	do
 	{
@@ -411,6 +424,7 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 		else
 			playerMoveColumn=waitColumnValue(sd, adversary_socket, sq_num, key,first_move);							
 		//check if move is allowed
+		//printGame(gameMatrix);
 		rowMove=checkMove(gameMatrix,playerMoveColumn);
 	}while(rowMove<0);
 	
@@ -502,20 +516,23 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		exit(0);
 	}	
 	memset(sendBuffer,0,BUF_SIZE);		
+	
 	unsigned char* random_data=(unsigned char*)malloc(SIZE_RANDOM_DATA);	
 	if(!random_data){
 		perror("Error malloc");
 		exit(0);
 	}
+	memset(random_data,0,SIZE_RANDOM_DATA);
+	
 	unsigned char* signature= (unsigned char*)malloc(SIZE_SIGNATURE);
 	if(!signature){
 		perror("Error malloc");
 		exit(0);
 	}
-
+	memset(signature,0,SIZE_SIGNATURE);
 
 	if(myPlayerId==0){
-		sleep(1);
+		//sleep(1);
 		RAND_poll();
 		RAND_bytes(random_data,SIZE_RANDOM_DATA);
 		cout<<"Ready to send data to be authenticated"<<endl;
@@ -706,4 +723,3 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	close(sd);
 	return 0;
 }
-
