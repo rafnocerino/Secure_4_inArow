@@ -18,18 +18,10 @@ int handleErrors(){
 }
 
 void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,cipher_txt* c){
-    cout<<"GCM OUTPUT PLAIN LEN"<<endl;
-    cout<<plaintext_len<<endl;
-    if(key==NULL)
-	cout<<"Chiave vuota"<<endl;
-	
+  	
     EVP_CIPHER_CTX *ctx;
     unsigned char* ciphertext=(unsigned char*)malloc(plaintext_len);
-    //int iv_len= SIZE_IV;
-    //int aad_len=iv_len;
-    //cout<<"The below numb should be 12:"<<endl;
-    //cout<<iv_len<<endl;
-    //cout<<aad_len<<endl;
+    
     unsigned char* iv=(unsigned char*)malloc(SIZE_IV);
     unsigned char* aad=(unsigned char*)malloc(SIZE_IV);
     unsigned char* tag=(unsigned char*)malloc(SIZE_TAG);
@@ -81,39 +73,10 @@ void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,
     //memcpy(c->all+ciphertext_len+iv_len, aad, iv_len);
     memcpy(c->all+ciphertext_len+SIZE_IV, tag, SIZE_TAG);
     c->all_len = ciphertext_len + SIZE_IV + SIZE_TAG;
-    cout<<"------------ CIPHER LEN --------"<<endl;
-    cout<<ciphertext_len<<endl;
-    cout<<"CIPHER"<<endl;
-    BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len); 
-    //BIO_dump_fp (stdout, (const char *)c->cphr, c->len_cphr); 
-    //BIO_dump_fp (stdout, (const char *)c->all, c->len_cphr); 
-    //cout<<ciphertext<<endl;
-    cout<<"------- END ------------"<<endl;
-    /*cout<<"IV"<<endl;
-    BIO_dump_fp (stdout, (const char *)iv, iv_len); 
-    BIO_dump_fp (stdout, (const char *)c->iv, c->len_iv); 
-    BIO_dump_fp (stdout, (const char *)c->all+c->len_cphr, c->len_iv); 
-    cout<<iv<<endl;
-    cout<<"------- END ------------"<<endl;
-    cout<<"AAD"<<endl;
-    BIO_dump_fp (stdout, (const char *)aad, iv_len); 
-    BIO_dump_fp (stdout, (const char *)c->aad, c->len_iv); 
-    BIO_dump_fp (stdout, (const char *)c->all+c->len_cphr+c->len_iv, c->len_iv); 
-    cout<<"------- END ------------"<<endl;
-    cout<<"------- TAG ------------"<<endl;
-    BIO_dump_fp (stdout, (const char *)tag, 16); 
-    BIO_dump_fp (stdout, (const char *)c->tag, 16); 
-    BIO_dump_fp (stdout, (const char *)c->all+c->len_cphr+c->len_iv+c->len_iv, 16); 
-    cout<<"------- END ------------"<<endl;*/
+   
     return;
 }
 
-/*int gcm_decrypt(unsigned char *ciphertext, int ciphertext_len,
-                unsigned char *aad, int aad_len,
-                unsigned char *tag,
-                unsigned char *key,
-                unsigned char *iv, int iv_len,
-                unsigned char *plaintext)*/
 
 bool gcm_decrypt(unsigned char *key,unsigned char* all, int all_len,unsigned char* pt){
 
@@ -121,8 +84,7 @@ bool gcm_decrypt(unsigned char *key,unsigned char* all, int all_len,unsigned cha
     unsigned char *plaintext=(unsigned char*)malloc(ciphertext_len);
     unsigned char* ciphertext=(unsigned char*)malloc(ciphertext_len);
     memcpy(ciphertext,all,ciphertext_len);
-    //BIO_dump_fp (stdout, (const char *)ciphertext, ciphertext_len); 
-    //cout<<ciphertext<<endl;
+   
     unsigned char* iv=(unsigned char*)malloc(SIZE_IV); 
     memcpy(iv,all+ciphertext_len,SIZE_IV);
 
@@ -185,8 +147,7 @@ bool gcm_decrypt(unsigned char *key,unsigned char* all, int all_len,unsigned cha
 
     /* Clean up */
     EVP_CIPHER_CTX_cleanup(ctx);
-    cout<<"HERE"<<endl;
-    BIO_dump_fp (stdout, (const char *)plaintext, plaintext_len);
+   
 
     if(ret > 0) {
         /* Success */
@@ -200,19 +161,4 @@ bool gcm_decrypt(unsigned char *key,unsigned char* all, int all_len,unsigned cha
     }
 }
 
-/*int main (void){
-	unsigned char msg[] = "Dario";
-    BIO_dump_fp (stdout, (const char *)msg, sizeof(msg));
-	//create key
-	unsigned char key_gcm[]="12345678901234561234567890123456";
-	struct cipher_txt c;
-    int pt_len=sizeof(msg);
-	gcm_encrypt(msg, pt_len, key_gcm, &c);
-	unsigned char* pt = (unsigned char*)malloc(pt_len); 	
-	if(!gcm_decrypt(key_gcm, c.all, c.all_len,pt)){
-		cout<<"Errore"<<endl;
-	}
-	cout<<pt<<endl;
-	
-	return 1;
-}*/
+

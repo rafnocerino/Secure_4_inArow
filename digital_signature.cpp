@@ -19,7 +19,6 @@ using namespace std;
 
 bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int messageLen,struct sockaddr_in* address,int address_len,bool serverCall){
 
-	cout<<"DEBUG: firmo con username = "<<userName<<endl;
 
 	// used for return values
 	int ret; 
@@ -86,15 +85,11 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	
 	// Fase di invio del messaggio firmato all'utente
 	
-	cout<<"DEBUG: invio del messaggio firmato."<<endl;
 	
 	unsigned char* sendBuffer = (unsigned char*)malloc(messageLen + sgnt_size);
 	memset(sendBuffer,0,messageLen + sgnt_size);
 	memcpy(sendBuffer,msg_to_sign,messageLen);
 	memcpy(sendBuffer + messageLen,sgnt_buf,sgnt_size);
-	
-	cout<<"DEBUG: Indirizzo ="<<inet_ntoa(address->sin_addr)<<endl;
-	cout<<"DEBUG: Lunghezza Indirizzo = "<<address_len<<endl;
 		
 		
 	ret = sendto(socket, sendBuffer, messageLen + sgnt_size, 0,(struct sockaddr*)address,address_len);
@@ -143,13 +138,6 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
 	memset(sgnt_buf,0,sgnt_size); 
 	memcpy(sgnt_buf,msg_signed + clear_size,sgnt_size);
    
-   
-   
-   cout<<"DEBUG: Verifica della firma"<<endl;
-   cout<<"DEBUG: Clear Buffer = "<<endl;
-   BIO_dump_fp(stdout,(const char*)clear_buf,clear_size);
-   cout<<"DEBUG: Clear Size = "<<clear_size<<endl;
-   cout<<"DEBUG: Signature Size = "<<sgnt_size<<endl;
    // declare some useful variables:
    const EVP_MD* md = EVP_sha256();
 
@@ -170,7 +158,7 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
       // deallocate buffers:
       return false;
    }
-   cout<<"DEBUG: firma correttamente verificata."<<endl;
+   
    free(clear_buf);
    free(sgnt_buf);
 	if(pubkey == NULL){

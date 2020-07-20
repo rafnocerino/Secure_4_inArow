@@ -62,7 +62,14 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
 	
 	memcpy(&rcv_opcode, plaintext, SIZE_OPCODE);
     pos += SIZE_OPCODE;
-
+	
+	if(rcv_opcode == OPCODE_MALFORMED_MEX){
+		free(plaintext);
+		printf("Received a malformed msg instead of ACK ! \n");
+		close(socket);
+		pthread_exit(NULL);
+	}
+	
 	if(rcv_opcode != exp_opcode){
 		free(plaintext);
 		return false;
@@ -72,12 +79,6 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
     memcpy(&rcv_seq_numb, plaintext + pos, SIZE_SEQNUMBER);
     pos += SIZE_SEQNUMBER;
    
-	
-	printf("-----------------------------------------\n");
-	printf("OPCODE -> Exp. = %u ; Rcv = %u.\n",exp_opcode,rcv_opcode);
-	printf("Message length = %d.\n",messageLength);
-	printf("ACK -> Exp. s.n. = %u ; Rcv s.n. = %u\n",exp_seq_numb,rcv_seq_numb);
-	printf("-----------------------------------------\n");
 
     if (rcv_opcode == OPCODE_MALFORMED_MEX) {
 		free(plaintext);
@@ -123,6 +124,7 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
     
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
         // this means that the msg that i sent was modified during the forwarding
+		printf("Received a malformed msg instead of Challenge request ! \n");
 		free(plaintext);
         close(socket);
         pthread_exit(NULL);
@@ -178,7 +180,7 @@ bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLe
     int pos = 0;
 	
 	bool check;
-	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_UNAVAILABLE);
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -196,7 +198,7 @@ bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLe
 	if(rcv_opcode == OPCODE_MALFORMED_MEX) {
 		
 		free(plaintext);
-        printf("Received a malformed message ! \n");
+        printf("Received a malformed message instead of a challenge Unavailable ! \n");
 		close(socket);
         pthread_exit(NULL);
     	}
@@ -225,7 +227,7 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLength,
     int pos = 0;
 	
 	bool check;
-	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_REFUSED);
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -240,6 +242,8 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLength,
     pos += SIZE_OPCODE;
 
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
+		free(plaintext);
+		printf("Received a malformed msg instead of Challenge refused ! \n");
         close(socket);
         pthread_exit(NULL);
     }
@@ -288,6 +292,7 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 
 	if (rcv_opcode == OPCODE_MALFORMED_MEX) {
 		free(plaintext);
+		printf("Received a malformed msg instead of Challenge Start ! \n");
         close(socket);
         pthread_exit(NULL);
     }
@@ -305,14 +310,6 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
     pos+=SIZE_PUBLIC_KEY;
     memcpy(ip,plaintext+pos,len);
     pos+=len;
-
-	printf("------Challenge Start Check------\n");
-	printf("OPCODE -> %u.\n",rcv_opcode);
-	printf("SEQ.NUM EXP = %u; RCV = %u.\n",exp_seq_numb,rcv_seq_numb);
-	printf("LUNGHEZZA IP = %u.\n",len);
-	printf("MESSAGE LENGTH = %d\n",messageLength);
-	printf("POS = %d\n",pos);
-	printf("---------------------------------\n");
 	
 
     messageLength -= SIZE_TAG + SIZE_IV;
@@ -352,6 +349,7 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 
 	if(opcodeMex == OPCODE_MALFORMED_MEX){
 		free(plaintext);
+		printf("Received a malformed msg instead of Update Status ! \n");
 		close(socket);		
 		pthread_exit(NULL);
 	}
@@ -375,19 +373,6 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 	memcpy(username,plaintext + pos,lenMex);
 	pos += lenMex;
 
-
-	printf("opcode -> %u\n",opcodeMex);
-	printf("RCV S.N. -> %u | EX. S.N. -> %u \n",seqNumMex,expectedSeqNum);
-	printf("status code -> %u\n",statusCodeMex);
-	printf("LEN -> %u\n",lenMex);
-	printf("Username -> %s \n",username);
-	printf("messageLenght -> %d\n", messageLength);
-
-	//Controllo della lunghezza del messaggio
-	/*if(messageLength <= ( SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_STATUS_CODE + SIZE_LEN ) || messageLength > SIZE_MESSAGE_UPDATE_STATUS){
-		free(plaintext);
-		return false;
-	}*/
 	
 	messageLength -= SIZE_IV + SIZE_TAG;
 
@@ -433,6 +418,7 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 
 	if(actualOpcode == OPCODE_MALFORMED_MEX){
 		free(plaintext);
+		printf("Received a malformed msg instead of Exit message ! \n");
 		close(socket);
 		pthread_exit(NULL);
 	}
@@ -447,11 +433,6 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 	memcpy(&actualLength,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER, SIZE_LEN);
 	memcpy(username,plaintext + SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN, actualLength);
 
-	printf("-------Check-exit-------------------------\n");
-	printf("S.N. EXP = %u | RCV. = %u \n",expectedSeqNum,actualSeqNum);
-	printf("Message Recived Lenght = %d\n",messageLength);
-	printf("Lenght username = %u\n", actualLength);
-	printf("---------------------------------------\n");
 	
 	messageLength -= SIZE_IV + SIZE_TAG;
 
@@ -475,7 +456,7 @@ bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,
 	uint8_t seqNumMex;
 	
 	bool check;
-	unsigned char* plaintext = (unsigned char*) malloc (SIZE_MESSAGE_CHALLENGE_ACCEPTED);
+	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -490,6 +471,7 @@ bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,
 
 	if(actualOpcode == OPCODE_MALFORMED_MEX){
 		free(plaintext);
+		printf("Received a malformed msg instead of Challenge Accepted ! \n");
 		close(socket);
 		pthread_exit(NULL);
 	}	
@@ -542,6 +524,7 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
 
     if (opcodeMex == OPCODE_MALFORMED_MEX) {
 		free(plaintext);
+		printf("Received a malformed msg instead of Available user list ! \n");
         close(socket);
         pthread_exit(NULL);
     }
@@ -562,14 +545,6 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
     memcpy(available_users,plaintext+pos,lenMex);
     pos+=lenMex;
 
-
-	printf("------User List Check------\n");
-	printf("OPCODE -> %u.\n",opcodeMex);
-	printf("SEQ.NUM EXP = %u; RCV = %u.\n",exp_seq_numb,seqNumMex);
-	printf("LUNGHEZZA CHUNK = %u.\n",lenMex);
-	printf("MESSAGE LENGTH = %d\n",messageLength);
-	printf("POS = %d\n",pos);
-	printf("---------------------------------\n");
 
     messageLength -= SIZE_TAG + SIZE_IV; 
 
@@ -694,14 +669,10 @@ bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_l
     uint8_t lenMex;
     uint8_t fl;
 
- 
-
     int pos=0;
     
     bool check;
     unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
-
- 
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);    
@@ -733,7 +704,6 @@ bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_l
     }
 
  
-
     memcpy(&seqNumMex,plaintext+pos,SIZE_SEQNUMBER);
     pos+=SIZE_SEQNUMBER;
     seq_numb=seqNumMex;
@@ -748,20 +718,8 @@ bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_l
     pos+=lenMex;
 
  
-
-
-    printf("------User List Check------\n");
-    printf("OPCODE -> %u.\n",opcodeMex);
-    printf("LUNGHEZZA CHUNK = %u.\n",lenMex);
-    printf("MESSAGE LENGTH = %d\n",messageLength);
-    printf("POS = %d\n",pos);
-    printf("---------------------------------\n");
-
- 
-
     messageLength -= SIZE_TAG + SIZE_IV; 
 
- 
 
     if(messageLength != pos){
         free(plaintext);

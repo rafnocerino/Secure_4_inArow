@@ -56,6 +56,8 @@ EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
 
 void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen){
   
+  
+  
   int ret; 
   bool check;
   unsigned char buffer[BUF_SIZE];
@@ -68,7 +70,7 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
   setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO,&time,sizeof(time));
  
  /* GENERATE KEY */
- printf("Start: loading standard DH parameters\n");
+  printf("-------STARTING DH PROTOCOL TO DERIVE SHARED KEY !---------\n");
  EVP_PKEY *params;
 
  
@@ -126,8 +128,12 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
  
  
 //here i extract my dh pubkey writing it on a file
+ string name = "./tmp/mydhpubkey";
+ name+=reinterpret_cast<const char*>(username);
+ name+=".pem";
+
  
- FILE* file_mydhpubkey = fopen("./tmp/mydhpubkey.pem","wb");
+ FILE* file_mydhpubkey = fopen( name.c_str(),"wb");
  if(!file_mydhpubkey){
 	perror("Error during the creation of temp my DH public key file! \n");
 	close(sd);
@@ -140,39 +146,34 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
 	pthread_exit(NULL);
  }
  
-	fclose(file_mydhpubkey);
+  fclose(file_mydhpubkey);
  
-  file_mydhpubkey = fopen("./tmp/mydhpubkey.pem","rb");
-
+  
+  file_mydhpubkey = fopen(name.c_str(),"rb");
+	if(!file_mydhpubkey){
+		perror("Error during the opening of temp my DH public key file! \n");
+		close(sd);
+		pthread_exit(NULL);
+ } 
  
  EVP_PKEY* pubkey_temp = PEM_read_PUBKEY(file_mydhpubkey,NULL,NULL,NULL);
  
  if(pubkey_temp == NULL){
-	 printf("Errore: impossibile leggere la chiave pubblica per il protocollo DH.\n");
+	 printf("Error during the reading of th DH public key.\n");
 	 close(sd);
 	 pthread_exit(NULL);
  }
  
  
- /* cout<<"10"<<endl;
- 
- fseek(file_mydhpubkey, 0, SEEK_END);  
- long len = ftell(file_mydhpubkey);  */
  
 	unsigned char* my_dh_pubkey;  
 
 	int pubkey_temp_len = serialize_PEM_Pub_Key(pubkey_temp,&my_dh_pubkey);
 
-	printf("DEBUG: pubkey_temp_len = %d\n",pubkey_temp_len);
-	printf("DEBUG: my_dh_pubkey = \n");
-	
-	BIO_dump_fp(stdout,(const char*)my_dh_pubkey,pubkey_temp_len);
 
- /*fseek(file_mydhpubkey, 0, SEEK_SET);  
- fread(my_dh_pubkey, 1, len, file_mydhpubkey);  */
  fclose(file_mydhpubkey); 
  
- removeFile("./tmp/mydhpubkey.pem");
+ removeFile(name.c_str());
  
 // Inizializzazione del contesto per derivare il segreto condiviso:
 unsigned char *skey;
@@ -236,9 +237,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
-	
-	
-	
+
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
 	
 	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
@@ -276,29 +275,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	free(temp_buf);
 	
-	/*FILE* f = fopen("./tmp/tmp_dh_pubkey_1","wb");
-	if(!f){
-		perror("There was an error during the creating of temporary peer DH file ! \n");
-		close(sd);
-		pthread_exit(NULL);
-	}
-	
-	ret = fwrite(buffer+SIZE_OPCODE,1,SIZE_DH_PUBLIC_KEY,f);
-	if(ret < SIZE_DH_PUBLIC_KEY){
-		perror("There was an error during the storing of the temp server certificate! \n");
-		close(sd);
-		pthread_exit(NULL);
-	}
-	
-	fclose(f);
-	
-	f = fopen("./tmp/tmp_dh_pubkey_1","rb");*/
 	
 	peer_pubkey = deserialize_PEM_pubkey(pubkey_len,peer_DH_pubkey);
 	
-	/*fclose(f);
-	
-	removeFile("./tmp/tmp_dh_pubkey_1");*/
 	
 	if(peer_pubkey == NULL ){
 		
@@ -336,7 +315,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	}
 	
-	BIO_dump_fp (stdout, (const char *)skey, skeylen);
 	
 }else{
 	 
@@ -372,8 +350,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}	
 	
-	cout<<"DEBUG: correttamente verificato il messaggio di DH_INFO"<<endl;
-	cout<<"DEBUG: la lunghezza della public key e'"<< pubkey_len <<endl;
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
@@ -413,144 +389,47 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	}
 	
 	free(temp_buf);
+	  
 	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	// Comportamento del client:
 	
-	//1. Mi metto in attesa di un messaggio contenente la chiave pubblica del server: 
-	/*memset(buffer,0,BUF_SIZE);
-	size = sizeof(*opposite_addr);
-	
-	received = recvfrom(sd,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,0,(struct sockaddr*)opposite_addr,&size);
-	int pubkey_len;
-	memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
-	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pubkey_len + SIZE_SIGNATURE);
-	received = recvfrom(sd,temp_buf + SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
-	
-	received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
-	
-	if( received <= 0 ){
-		
-		printf("Timer expired for the reception of DH message ! \n");
+
+	peer_pubkey = deserialize_PEM_pubkey(pubkey_len,pkeyServerBuffer);
+				
+	if(peer_pubkey == NULL){
+		perror("Errore: durante il protocollo DH impossibile leggere da file la chiave pubblica del server.\n");
 		close(sd);
 		pthread_exit(NULL);
-		
 	}
-	
-	memcpy(temp_buf,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN);*/
-	
-	//2. Se la chiave pubblica arriva entro lo scadere del timer e il messaggio ha una grandezza corretta:
-	//if(received == SIZE_MESSAGE_DH_MESSAGE){
-		//Alloco il buffer che conterrà la chiave pubblica del server:
-		//unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
-		//3. Controllo la struttura del messaggio e estrazione della chiave pubblica:
-		/*if(check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer)){
-			printf("DEBUG: la struttura del messaggio DH message ricevuto è corretta.\n");
-			//4. Verifico la firma contenuta nel messaggio:
-			if(verifySignMsg(username,temp_buf,received,oppositeKey)){
-				printf("DEBUG: la firma del messaggio DH message ricevuto è corretta.\n");
-				free(temp_buf);
-				//5. Salvataggio della chiave pubblica del protocollo DH ottenuta all'interno di un file temporaneo
-				/*FILE* f = fopen("./tmp/tmp_DH_pubkey_2.pem","wb");
-				
-				if(!f){
-					perror("Errore: durante il protocollo DH impossible memorizzare la chiave .\n");
-					close(sd);
-					pthread_exit(NULL);
-				}
-				 
-				ret = fwrite(pkeyServerBuffer,1,SIZE_DH_PUBLIC_KEY,f);
-				
-				BIO_dump_fp (stdout, (const char *)pkeyServerBuffer, SIZE_DH_PUBLIC_KEY);
-				
-				fclose(f);
-				
-				if(ret < SIZE_DH_PUBLIC_KEY){
-					perror("Errore: durante il protocollo DH impossibile scrivere su file la chiave pubblica del server.\n");
-					close(sd);
-					pthread_exit(NULL);
-				}*/
-				
-				//6. Lettura della chiave pubblica dal file temporaneo:
-				
-				//f = fopen("./tmp/tmp_DH_pubkey_2.pem","rb");*/
-				
-				/*peer_pubkey = PEM_read_PUBKEY(f,NULL,NULL,NULL);*/
-				
-				peer_pubkey = deserialize_PEM_pubkey(pubkey_len,pkeyServerBuffer);
-				
-				if(peer_pubkey == NULL){
-						perror("Errore: durante il protocollo DH impossibile leggere da file la chiave pubblica del server.\n");
-						close(sd);
-						pthread_exit(NULL);
-				}
-				
-				//fclose(f);
-								
-				//7. Eliminazione del file temporaneo:
-				/*if(!removeFile("./tmp/tmp_DH_pubkey_2.pem")){
-					perror("Errore: durante il protocollo DH impossibile eliminare il file temporaneo con la chiave pubblica del server.\n");
-					close(sd);
-					pthread_exit;
-				}*/
 				
 				
-				//8. Derivazione del segreto condiviso
-				if (EVP_PKEY_derive_set_peer(ctx_drv, peer_pubkey) <= 0){
-					perror("Errore: durante il protocollo DH impossibile eseguire peer_pubkey.\n");
-					close(sd);
-					pthread_exit;
-				}
-				
-				// Derivo una prima volta per conoscere la lunghezza del buffer:
-				EVP_PKEY_derive(ctx_drv, NULL, &skeylen);
-				
-				// Alloco il buffer per il segreto condiviso
-				skey = (unsigned char*)(malloc(int(skeylen)));
-				
-				if(!skey){
-					perror("Errore: durante il protocollo DH impossibile allocare skey.\n");
-					close(sd);
-					pthread_exit;		
-				}
-				
-				if(EVP_PKEY_derive(ctx_drv, skey, &skeylen) <= 0){
-					perror("Errore: durante il protocollo DH impossibile eseguire EVP_PKEY_derive.\n");
-					close(sd);
-					pthread_exit;
-				} 
-				
-				//printf("Here it is the shared secret: \n");
-				//BIO_dump_fp (stdout, (const char *)skey, skeylen);
-				send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false);
-				send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first);
-			
-			/*}else{
-				perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con firma errata.\n");
-				close(sd);
-				pthread_exit(NULL);
-			}
-		}else{
-			perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con formato errato.\n");
-			close(sd);
-			pthread_exit(NULL);
-		}*/
-		
-	/*}else{
-		perror("Errore: durante il protocollo DH il client non e' riuscito a ottenere il messaggio con la chiave pubblica del server.\n");
+	//8. Derivazione del segreto condiviso
+	if (EVP_PKEY_derive_set_peer(ctx_drv, peer_pubkey) <= 0){
+		perror("Errore: durante il protocollo DH impossibile eseguire peer_pubkey.\n");
 		close(sd);
-		pthread_exit(NULL);
-	}*/
+		pthread_exit;
+	}
+				
+	// Derivo una prima volta per conoscere la lunghezza del buffer:
+	EVP_PKEY_derive(ctx_drv, NULL, &skeylen);
+				
+	// Alloco il buffer per il segreto condiviso
+	skey = (unsigned char*)(malloc(int(skeylen)));
+				
+	if(!skey){
+		perror("Errore: durante il protocollo DH impossibile allocare skey.\n");
+		close(sd);
+		pthread_exit;		
+		}
+				
+	if(EVP_PKEY_derive(ctx_drv, skey, &skeylen) <= 0){
+		perror("Errore: durante il protocollo DH impossibile eseguire EVP_PKEY_derive.\n");
+		close(sd);
+		pthread_exit;
+	} 
+				
+	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false);
+	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first);
+			
  }
  
 	EVP_MD_CTX* md_ctx;
@@ -580,6 +459,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	 EVP_PKEY_free(my_dhkey);
 	 EVP_PKEY_CTX_free(DHctx);
 	 EVP_PKEY_free(params);
+	 
+	  printf("-------SHARED KEY CREATED SUCCESSFULLY !---------\n");
+	 
 	 return;
 }
 
@@ -598,7 +480,9 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
   setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO,&time,sizeof(time));
  
  /* GENERATE KEY */
- printf("Start: loading standard DH parameters\n");
+ 
+ printf("-------STARTING DH PROTOCOL TO DERIVE SHARED KEY !---------\n");
+ 
  EVP_PKEY *params;
 
  
@@ -684,22 +568,11 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
  }
  
  
- /* cout<<"10"<<endl;
- 
- fseek(file_mydhpubkey, 0, SEEK_END);  
- long len = ftell(file_mydhpubkey);  */
- 
 	unsigned char* my_dh_pubkey;  
 
 	int pubkey_temp_len = serialize_PEM_Pub_Key(pubkey_temp,&my_dh_pubkey);
 
-	printf("DEBUG: pubkey_temp_len = %d\n",pubkey_temp_len);
-	printf("DEBUG: my_dh_pubkey = \n");
-	
-	BIO_dump_fp(stdout,(const char*)my_dh_pubkey,pubkey_temp_len);
 
- /*fseek(file_mydhpubkey, 0, SEEK_SET);  
- fread(my_dh_pubkey, 1, len, file_mydhpubkey);  */
  fclose(file_mydhpubkey); 
  
  removeFile("./tmp/mydhpubkey.pem");
@@ -765,8 +638,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	}	
 	
 	
-	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
-	
+	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN)
 	
 	
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
@@ -866,7 +738,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	}
 	
-	BIO_dump_fp (stdout, (const char *)skey, skeylen);
 	
 }else{
 	 
@@ -902,8 +773,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}	
 	
-	cout<<"DEBUG: correttamente verificato il messaggio di DH_INFO"<<endl;
-	cout<<"DEBUG: la lunghezza della public key e'"<< pubkey_len <<endl;
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
@@ -944,78 +813,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	free(temp_buf);
 	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	 
-	// Comportamento del client:
-	
-	//1. Mi metto in attesa di un messaggio contenente la chiave pubblica del server: 
-	/*memset(buffer,0,BUF_SIZE);
-	size = sizeof(*opposite_addr);
-	
-	received = recvfrom(sd,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,0,(struct sockaddr*)opposite_addr,&size);
-	int pubkey_len;
-	memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
-	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + pubkey_len + SIZE_SIGNATURE);
-	received = recvfrom(sd,temp_buf + SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN,pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
-	
-	received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
-	
-	if( received <= 0 ){
-		
-		printf("Timer expired for the reception of DH message ! \n");
-		close(sd);
-		pthread_exit(NULL);
-		
-	}
-	
-	memcpy(temp_buf,buffer,SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN);*/
-	
-	//2. Se la chiave pubblica arriva entro lo scadere del timer e il messaggio ha una grandezza corretta:
-	//if(received == SIZE_MESSAGE_DH_MESSAGE){
-		//Alloco il buffer che conterrà la chiave pubblica del server:
-		//unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
-		//3. Controllo la struttura del messaggio e estrazione della chiave pubblica:
-		/*if(check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer)){
-			printf("DEBUG: la struttura del messaggio DH message ricevuto è corretta.\n");
-			//4. Verifico la firma contenuta nel messaggio:
-			if(verifySignMsg(username,temp_buf,received,oppositeKey)){
-				printf("DEBUG: la firma del messaggio DH message ricevuto è corretta.\n");
-				free(temp_buf);
-				//5. Salvataggio della chiave pubblica del protocollo DH ottenuta all'interno di un file temporaneo
-				/*FILE* f = fopen("./tmp/tmp_DH_pubkey_2.pem","wb");
-				
-				if(!f){
-					perror("Errore: durante il protocollo DH impossible memorizzare la chiave .\n");
-					close(sd);
-					pthread_exit(NULL);
-				}
-				 
-				ret = fwrite(pkeyServerBuffer,1,SIZE_DH_PUBLIC_KEY,f);
-				
-				BIO_dump_fp (stdout, (const char *)pkeyServerBuffer, SIZE_DH_PUBLIC_KEY);
-				
-				fclose(f);
-				
-				if(ret < SIZE_DH_PUBLIC_KEY){
-					perror("Errore: durante il protocollo DH impossibile scrivere su file la chiave pubblica del server.\n");
-					close(sd);
-					pthread_exit(NULL);
-				}*/
-				
-				//6. Lettura della chiave pubblica dal file temporaneo:
-				
-				//f = fopen("./tmp/tmp_DH_pubkey_2.pem","rb");*/
-				
-				/*peer_pubkey = PEM_read_PUBKEY(f,NULL,NULL,NULL);*/
 				
 				peer_pubkey = deserialize_PEM_pubkey(pubkey_len,pkeyServerBuffer);
 				
@@ -1024,15 +821,6 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 						close(sd);
 						pthread_exit(NULL);
 				}
-				
-				//fclose(f);
-								
-				//7. Eliminazione del file temporaneo:
-				/*if(!removeFile("./tmp/tmp_DH_pubkey_2.pem")){
-					perror("Errore: durante il protocollo DH impossibile eliminare il file temporaneo con la chiave pubblica del server.\n");
-					close(sd);
-					pthread_exit;
-				}*/
 				
 				
 				//8. Derivazione del segreto condiviso
@@ -1060,27 +848,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 					pthread_exit;
 				} 
 				
-				//printf("Here it is the shared secret: \n");
-				//BIO_dump_fp (stdout, (const char *)skey, skeylen);
+				
 				send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false);
 				send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first);
 			
-			/*}else{
-				perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con firma errata.\n");
-				close(sd);
-				pthread_exit(NULL);
-			}
-		}else{
-			perror("Errore: durante il protocollo DH il client ha ottenuto il messaggio contenente la chiava pubblica del server con formato errato.\n");
-			close(sd);
-			pthread_exit(NULL);
-		}*/
-		
-	/*}else{
-		perror("Errore: durante il protocollo DH il client non e' riuscito a ottenere il messaggio con la chiave pubblica del server.\n");
-		close(sd);
-		pthread_exit(NULL);
-	}*/
  }
  
 	EVP_MD_CTX* md_ctx;
@@ -1110,5 +881,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	 EVP_PKEY_free(my_dhkey);
 	 EVP_PKEY_CTX_free(DHctx);
 	 EVP_PKEY_free(params);
+	 
+	 printf("-------SHARED KEY CREATED SUCCESSFULLY !---------\n");
 	 return;
 }

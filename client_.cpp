@@ -12,7 +12,7 @@
 #include "protocol_constant.h"
 #include "check_message.h"
 #include "send_message.h"
-#include "gioco_v2.1.h"
+#include "game_v2.1.h"
 #include "digital_signature.h"
 #include "dh.h"
 #include "gcm.h"
@@ -31,71 +31,6 @@ using namespace std;
 
 uint8_t seq_numb;
 
-//valutare la possibilità di fare funzione receive_ACK()---> riduce di molto la ridondanza
-
-/*EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
-	BIO* mbio = BIO_new(BIO_s_mem());
-	BIO_write(mbio,pubkey_buf,pubkeySize);
-	EVP_PKEY* pubkey = PEM_read_bio_PUBKEY(mbio,NULL,NULL,NULL);
-	return pubkey;
-}*/
-
-/*void received_availableUserList(){
-	
-	int flag=0;
-        int len_list=0;
-        int total_len=0;
-        char* result = (char*)malloc(255);
-		if(!result){
-			cout<<"There was an error during the allocation of the memory for the available user list! " <<endl;
-		}
-		
-        int result_size=0;
-        char* temp;
-        while(true){
-
-            memset(buffer, 0, BUF_SIZE);
-            size = addr_size;
-            pos = 0;
-
-
-
-            received = recvfrom(socket, buffer, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)sv_addr_challenge, &size);
-            
-			printf("Ricevuto chunk della available user list.\n");
-
-            char list[255];
-            check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag,key);
-            
-            if (!check) {
-            cout<<"The user available list msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, rcv_seq_numb, sv_addr_challenge, addr_size,key);
-            close(socket);
-            exit(-1);
-            }
-
-            send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_challenge, addr_size,key);         
-
-            total_len+=len_list;
-            temp=(char*)malloc(total_len);
-            memcpy(temp,result,result_size);
-            memcpy(temp+result_size,list,len_list);
-
-            free(result);
-            result = (char*)malloc(total_len + 1);
-            memcpy(result,temp,total_len);
-            result_size=total_len;
-
-            if(flag==1){
-                break;
-            }
-
-        }
-        result[result_size] = '\0';
-		printf("Available User List: %s\n",result);
-	
-	
-}*/
 
 void receive_ACK(int socket,unsigned char* buffer,int addr_size,struct sockaddr_in* sv_addr,int& received){
     socklen_t size = addr_size;
@@ -121,7 +56,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 	int received;
 	bool check;
 	
-	time.tv_sec=30;
+	time.tv_sec=WAIT_TIME_LOGIN;
 	time.tv_usec=0;
 	
     memset(&sv_addr, 0, sizeof(sv_addr));
@@ -160,6 +95,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 	
 	check=check_signatureMessageClient(buf,received,random_data,signature);
 	if(!check){
+		printf("The signature message received by the message used to authenticate ourselves is altered! \n");
 		close(sock);
 		exit(-1);
 	}
@@ -248,6 +184,9 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 		exit(-1);
 	}
 	
+	fclose(f);
+	removeFile("temp_sv_cert.pem");
+	
 	X509_STORE_CTX* ctx = X509_STORE_CTX_new();
 	X509_STORE_CTX_init(ctx,store,server_cert,NULL);
 	
@@ -256,7 +195,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 		printf("The verification of the server certificate has given negative result! \n");
 		exit(-1);
 	}else{
-		printf("Verification successful for the server certificate ! \n");
+		printf("---- Server certificate successfully verified ! ---- ! \n");
 	}
 	
 	X509_STORE_CTX_free(ctx);
@@ -265,18 +204,47 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 	
 	check=verifySignMsg(user,buf,SIZE_MESSAGE_SIGNATURE_MESSAGE,server_pubkey);
 	if(!check){
-		cout<<"The signature verification has given negative result  !\n";
+		cout<<"The signature verification of the server msg has given negative result  !\n";
 		close(sock);
 		exit(-1);
 	}
 	
 	send_signature_message(sock,buf,random_data,user,0,serverPrivAddress,size,false);
 	
+	unsigned char* sending_random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+	RAND_poll();
+	RAND_bytes(sending_random_data,SIZE_RANDOM_DATA);
+	
+	send_signature_message(sock,buf,sending_random_data,user,0,serverPrivAddress,size,false);
+	
+	memset(buf,0,BUF_SIZE);
+	int pos = 0;
+	size = sizeof(sv_addr);
+	received = recvfrom(sock, buf, SIZE_MESSAGE_SIGNATURE_MESSAGE, 0, (struct sockaddr*)serverPrivAddress, &size);
+	
+	if(received <= 0){
+		close(sock);
+		exit(-1);
+	}
+	
+	check = check_signature_message_server(buf,received,sending_random_data);
+	if(!check){
+		printf("The signature message received by the server used to authenticate it is altered! \n");
+		close(sock);
+		exit(-1);
+	}
+	
+	check = verifySignMsg(user,buf,SIZE_MESSAGE_SIGNATURE_MESSAGE,server_pubkey);
+	
+	if(!check){
+		cout<<"The signature verification of the server msg has given negative result  !\n";
+		close(sock);
+		exit(-1);
+	}
+	
 	sharedSecretCreationDH(sock, serverPrivAddress, false,user,server_pubkey,shared_secret,shared_secretLen);
 		
-	cout<<"DEBUG: chiave di sessione ottenuta di lungezza = "<<shared_secretLen<<endl;
-	cout<<"DEBUG: chiave di sessione ottenuta = "<<endl;
-	BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
+	
 	
 	int flag=0;
     int len_list=0;
@@ -294,11 +262,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
             socklen_t size_temp = sizeof(*serverPrivAddress);
             pos = 0;
 
-
-
             received = recvfrom(sock, buf, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)serverPrivAddress, &size);
-            
-			printf("Ricevuto chunk della available user list.\n");
 
             char list[255];
             check = check_FirstAvailable_userList(sock,buf,len_list,received,seq_numb,list,flag,shared_secret);
@@ -342,7 +306,6 @@ void exit(int socket,sockaddr_in* sv_addr_priv, int addr_size,char* user,unsigne
     send_exit(socket,buffer,user,++seq_numb,sv_addr_priv,addr_size,key);
 
     receive_ACK(socket,buffer,addr_size,sv_addr_priv,received); 
-	printf("ACK ricevuto!\n");   
     check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
         cout<<"ACK received after exit msg is altered, the app will be closed!"<<endl;
@@ -380,17 +343,13 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
     seq_numb = seq_numb + 1;  // attualmente scelto cosi-->futuro randomizzato
     user_len = strlen(user)+1;
-	
-	printf("USER: %s.\n",user);
-	printf("USER.LEN: %u.\n",user_len);
 
     // sent the update status used to notify the server that the client will wait challenge requests
     send_UpdateStatus(socket, buffer, user, user_len, OPCODE_UPDATE_STATUS, seq_numb, STATUS_WAITING, sv_addr_priv, addr_size,key);
 
     // now i wait the ack from the server
 
-    receive_ACK(socket,buffer,addr_size,sv_addr_priv,received); 
-	printf("ACK ricevuto!\n");   
+    receive_ACK(socket,buffer,addr_size,sv_addr_priv,received);  
     check = check_ack(socket, buffer, received, OPCODE_ACK, seq_numb,key);
     if (!check) {
         cout<<"ACK received after first UpdateStatus is altered, the app will be closed!"<<endl;
@@ -414,7 +373,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
     if (received <= 0) {  // timeout elapsed
 
-        cout << "No challenge received in 5 minutes, the user will be redirected to the main menu! " << endl;
+        cout << "No challenge received in 3 minutes, the user will be redirected to the main menu! " << endl;
         pos = 0;
 
         //reset timer 
@@ -463,10 +422,32 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
         cout << "Challenge request received from: " << challenging_user << " ! \n";
         cout << "Write ACCEPT to play otherwise write REFUSE \n";
         cin >> chg_cmd;
+		
+		/*if( fgets(chg_cmd,7,stdin) == NULL ){
+			cout<<"Error during insertion of the ACCEPT/REFUSE command !"<<endl;
+			exit(-1);
+		}
+	
+		char* p = strchr(chg_cmd,'\n');
+		if(p){
+			*p='\0';
+		}*/
+
 
         while (strcmp(chg_cmd, "ACCEPT") != 0 && strcmp(chg_cmd, "REFUSE") != 0) {
             cout << "Wrong command inserted, please retry!" << endl;
             cin >> chg_cmd;
+			
+			/*if( fgets(chg_cmd,6,stdin) == NULL ){
+				cout<<"Error during insertion of the ACCEPT/REFUSE command !"<<endl;
+				exit(-1);
+			}
+	
+			p = strchr(chg_cmd,'\n');
+			if(p){
+				*p='\0';
+			}*/
+
         }
 
         //reset timer 
@@ -561,12 +542,11 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
                 send_ACK(socket, buffer, OPCODE_ACK, seq_numb, sv_addr_priv, addr_size,key);
                 // here we will insert a function call in order to start the game
-                //BIO_dump_fp(stdout, (const char*) adv_pubkey, SIZE_PUBLIC_KEY);
+               
                 EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
-                if(pubkey_adv==NULL)
-			cout<<"AAAAAAAAAAAAAAAAAAAAAAAAAAAAA chiave vouta"<<endl;
-		gameStart(adv_ip,1,pubkey_adv,user);            
-		}
+                
+				gameStart(adv_ip,1,pubkey_adv,user);            
+			}
         }
 
         // we have refused the challenge --> we send a challenge refused msg
@@ -644,8 +624,17 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
     //now the user has to insert as input the name of the user who wants to challenge
     cout<<"Please insert the name of the challenged user ! \n";
-    cin>>challenged_user;
-
+    
+	cin>>challenged_user;
+	/*if( fgets(challenged_user,255,stdin) == NULL ){
+		cout<<"Error during insertion of the challenged username !"<<endl;
+		}
+	
+		char* p1 = strchr(challenged_user,'\n');
+		if(p1){
+			*p1='\0';
+		}
+   */
    
     //now i send the challenge request to the inserted user
     send_challengeRequest(socket,sv_addr_priv,addr_size,buffer,user,challenged_user,++seq_numb,0,key);
@@ -713,23 +702,6 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
     }
 
-    /*if(rcv_opcode == OPCODE_CHALLENGE_TIMER_EXPIRED){
-        
-        cout<<"The challenge does not receive response in time ! "<<endl;
-        
-        check = check_challengeTimerExpired(socket,buffer,received,++seq_numb);
-
-        if(!check){
-            cout<<"The challenge timer expired msg is altered, the app will be closed !"<<endl;
-            send_malformedMsg(socket, buffer, OPCODE_MALFORMED_MEX, seq_numb, sv_addr_priv, addr_size);
-            close(socket);
-            exit(-1);
-        }
-
-        send_ACK(socket, buffer, OPCODE_ACK,seq_numb, sv_addr_priv, addr_size);
-        
-    }*/
-
 
     if(rcv_opcode == OPCODE_CHALLENGE_REFUSED){
         
@@ -782,7 +754,6 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 
             received = recvfrom(socket, buffer, SIZE_MESSAGE_AVAILABLE_USER_LIST , 0, (struct sockaddr*)sv_addr_challenge, &size);
             
-			printf("Ricevuto chunk della available user list.\n");
 
             char list[255];
             check = check_available_userList(socket,buffer,len_list,received,++seq_numb,list,flag,key);
@@ -813,10 +784,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         }
         result[result_size] = '\0';
 		printf("Available User List: %s\n",result);
-        /*BIO_dump_fp(stdout,(const char*)result,result_size);	
-        avail_len=result_size;
-		available_users=(char*) malloc(avail_len);
-		memcpy(available_users,result,result_size);*/
+     
     }
     
     if(rcv_opcode == OPCODE_CHALLENGE_START){
@@ -857,6 +825,8 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         close(socket);
         exit(-1);
     }
+	
+	cout<<"Now you will be redirected to the main menu!"<<endl;
 }
 
 int main() {
@@ -906,13 +876,13 @@ int main() {
         
 		cout << "Inserisci un comando, per aiuto digita !help " << endl;
         
-		/*if( fgets(cmd,10,stdin) == NULL ){
+		/*if( fgets(cmd,12,stdin) == NULL ){
 		cout<<"Error during insertion of the command !"<<endl;
 		}
 	
-		char* p = strchr(user,'\n');
-		if(p){
-			*p='\0';
+		char* p1 = strchr(cmd,'\n');
+		if(p1){
+			*p1='\0';
 		}*/
 		
 		cin >> cmd;
@@ -948,6 +918,8 @@ int main() {
         else {
             cout << "the inserted command is wrong, please try with a new one or !help to see the command list!" << endl;
         }
+		
+		//memset(cmd,0,12);
     }
     return 0;
 }

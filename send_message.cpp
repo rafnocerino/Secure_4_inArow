@@ -232,9 +232,7 @@ void send_challengeUnavailable(int socket, unsigned char* buffer, uint8_t seqNum
 
 void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_numb,uint8_t len,bool lastFlag,char* chunk,sockaddr_in* client_addr, int addr_size,unsigned char *key){
 
-	printf("Addr. size -> %d.\n",addr_size);
-	printf("Porta -> %u.\n",client_addr->sin_port);
-	printf("Indirizzo -> %s.\n",inet_ntoa(client_addr->sin_addr));
+	
 	int pos = 0;
     uint8_t seqNumMex = seq_numb;
     uint8_t opcodeMex = OPCODE_AVAILABLE_USER_LIST;
@@ -252,8 +250,6 @@ void send_AvailableUserListChunk(int socket,unsigned char* buffer,uint8_t seq_nu
     memcpy(buffer + pos, chunk, lenMex);
     pos += lenMex;
 
-	printf("pos -> %d.\n",pos);
-	BIO_dump_fp(stdout,(const char*)buffer,pos);
 
 	struct cipher_txt c;
 	
@@ -320,10 +316,6 @@ void send_ACK(int socket, unsigned char* buffer, uint8_t op_code, uint8_t seq_nu
 
     ret = sendto(socket, c.all, c.all_len, 0, (struct sockaddr*)sv_addr, addr_size);
 	
-	printf("ret -> %d\n",ret);
-	//BIO_dump_fp(stdout,(const char*)c.all,c.all_len);
-	BIO_dump_fp(stdout,(const char*)buffer,pos);
-	printf("Sono la porta magica %d\n",sv_addr->sin_port);
     if (ret < (int)SIZE_MESSAGE_ACK) {
         perror("There was an error during the sending of the ACK \n");
         close(socket);
