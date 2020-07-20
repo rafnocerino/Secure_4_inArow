@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <iostream>
 
 #include <openssl/evp.h>
 
@@ -625,18 +626,22 @@ bool check_DHmessage(unsigned char* buffer,int messageLength,int pkey_len,unsign
 	memcpy(peer_dh_pubkey,buffer+pos,pkey_len);
 	pos+=pkey_len;
 	
+	printf("Memcpy\n");
 	if(memcmp(myRandomData,buffer+pos,SIZE_RANDOM_DATA) != 0){
 		return false;
 	}
 	
+	printf("OPCODE\n");
 	if(rcv_opcode != OPCODE_DH_MESSAGE){
 		return false;
 	}
 	
+	printf("MESSAGE size \n");
+	printf("%d \n",messageLength);
 	if( messageLength != SIZE_OPCODE + SIZE_SIGNATURE + pkey_len + SIZE_RANDOM_DATA){
 		return false;
 	}
-	
+	printf("MESSAGE size fine \n");
 	return true;
 	
 }
@@ -652,15 +657,16 @@ bool check_DHmessage_info(unsigned char* buffer, int messageLength,int& pkey_len
 	memcpy(&pkey_lenMex,buffer + pos, SIZE_DH_PUBLIC_KEY_LEN);
 	pos+=SIZE_DH_PUBLIC_KEY_LEN;
 	pkey_len = pkey_lenMex;
-	
+	printf("Memcpy info\n");
 	if(memcmp(myRandomData,buffer + pos,SIZE_RANDOM_DATA) != 0){
 		return false;
 	}
-	
+	//cout<<"OPCODE info"<<endl;
 	if(rcv_opcode != OPCODE_DH_MESSAGE_INFO){
 		return false;
 	}
 	
+	//cout<<"msg len info"<<endl;
 	if( messageLength != SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + SIZE_SIGNATURE + SIZE_RANDOM_DATA){
 		return false;
 	}

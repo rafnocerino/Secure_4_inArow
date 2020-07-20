@@ -238,9 +238,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
 	
-	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
 	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
 	
@@ -353,9 +353,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
 	
-	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
 	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
 	
@@ -379,7 +379,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	check=verifySignMsg(username,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,oppositeKey);
+	check=verifySignMsg(username,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,oppositeKey);
 	if(!check){
 		
 		printf("The signature verification of the received DH message has given negative result ! \n");
@@ -641,9 +641,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN)
 	
 	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
 	
-	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
 	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
 	
@@ -776,9 +776,9 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
-	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE);
+	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
 	
-	received = recvfrom(sd,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,0,(struct sockaddr*)opposite_addr,&size);
+	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
 	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
 	
@@ -802,7 +802,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	check=verifySignMsg(username,temp_buf,SIZE_OPCODE + pubkey_len + SIZE_SIGNATURE,oppositeKey);
+	check=verifySignMsg(username,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,oppositeKey);
 	if(!check){
 		
 		printf("The signature verification of the received DH message has given negative result ! \n");

@@ -3,7 +3,7 @@
  WHEN A PLAYER MOVE
  - CREATE THE MSG
  - SEND THE MSG
- - WAIT FOR ACK/MALFORMED [NOT IMPLEMNTED]
+ - WAIT FOR ACK/MALFORMED 
  WHEN A PLAYER WAITS
  - WAIT THE MSG
  - ANAYLZE MALFORMED
@@ -29,7 +29,7 @@
 #include "gcm.h"
 
 #include "protocol_constant.h"
-#include "game_v2.1.h"
+#include "gioco_v2.1.h"
 #define MAX_BUFFER_SIZE 512
 #define MOVE_SIZE 34
 #define OPCODE_MOVE 30
@@ -99,7 +99,7 @@ int check_move(unsigned char* buffer, int messageLength, uint8_t* expectedSeqNum
 	if(actualOpcode==OPCODE_MALFORMED_MEX){
 		cout<<"Error: The adversary has recived a malformed msg"<<endl;		
 		//ack?		
-		return -1;
+		return -2;
 	}
 
 	if(actualOpcode!= OPCODE_MOVE){
@@ -262,7 +262,8 @@ int waitColumnValue(int sd, sockaddr_in* adversary_socket, uint8_t* seq_numb_exp
 		cout<<"Sono neella wait ho ricevuto un pacchetto adesso controllo"<<endl;
 		playerMoveColumn=check_move(receive_buffer, MOVE_SIZE ,seq_numb_expected,key,first_move);
 		if(playerMoveColumn<0){	
-			send_malformedMsg(sd,receive_buffer,OPCODE_MALFORMED_MEX,++(*seq_numb_expected),adversary_socket,len,key );
+			if(playerMoveColumn!=-2)			
+				send_malformedMsg(sd,receive_buffer,OPCODE_MALFORMED_MEX,++(*seq_numb_expected),adversary_socket,len,key );
 			exit(-1);		
 		}
 
@@ -471,6 +472,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	struct sockaddr_in adversary_socket; //where to send/recive data
 	/* ************************* */
 	int myPlayerId=playerI;
+	int counter=0;
 	int playerId=0;
 	int indexMove;
 	uint8_t moveNumber=0;
@@ -524,17 +526,32 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	}
 	memset(random_data,0,SIZE_RANDOM_DATA);
 	
-	/*unsigned char* signature= (unsigned char*)malloc(SIZE_SIGNATURE);
+	unsigned char* signature= (unsigned char*)malloc(SIZE_SIGNATURE);
 	if(!signature){
 		perror("Error malloc");
 		exit(0);
 	}
-	memset(signature,0,SIZE_SIGNATURE);*/
+	memset(signature,0,SIZE_SIGNATURE);
 
+	unsigned char* nuance=(unsigned char*)malloc(SIZE_RANDOM_DATA);
+	if(!nuance){
+		perror("Error malloc");
+		exit(0);
+	}
+	memset(nuance,0,SIZE_RANDOM_DATA);
+	
+	unsigned char* my_nuance=(unsigned char*)malloc(SIZE_RANDOM_DATA);
+	if(!my_nuance){
+		perror("Error malloc");
+		exit(0);
+	}
+	memset(my_nuance,0,SIZE_RANDOM_DATA);
+	
 	if(myPlayerId==0){
 		//sleep(1);
 		RAND_poll();
 		RAND_bytes(random_data,SIZE_RANDOM_DATA);
+		memcpy(my_nuance,random_data,SIZE_RANDOM_DATA);
 		cout<<"Ready to send data to be authenticated"<<endl;
 		send_signature_message(sd,sendBuffer,random_data,username,0,&adversary_socket,sizeof(adversary_socket),0);
 		cout<<"Sent"<<endl;
@@ -581,7 +598,6 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 			close(sd);
 			exit(-1);
 		}
-
 		// ********************************************* 		
 		if(recived==SIZE_MESSAGE_SIGNATURE_MESSAGE){
 			//check msg signature
@@ -600,6 +616,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 				exit(-1); 
 			}
 		}	
+		memcpy(nuance,random_data,SIZE_RANDOM_DATA);
 		//*********************************	
 		cout<<"Ready to sign data authenticated"<<endl;
 		//authenticate and send info
@@ -640,7 +657,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 			close(sd);
 			exit(-1);
 		}
-		
+		memcpy(nuance,random_data,SIZE_RANDOM_DATA);
 		memset(sendBuffer,0,BUF_SIZE);
 		cout<<"Data authenticated ready to send"<<endl;
 		send_signature_message(sd,sendBuffer,random_data,username,0,&adversary_socket,sizeof(adversary_socket),0);
@@ -650,6 +667,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		memset(sendBuffer,0,BUF_SIZE);
 		RAND_poll();
 		RAND_bytes(random_data,SIZE_RANDOM_DATA);
+		memcpy(my_nuance,random_data,SIZE_RANDOM_DATA);
 		cout<<"Ready to send data to be authenticaed"<<endl;
 		send_signature_message(sd,sendBuffer,random_data,username,0,&adversary_socket,sizeof(adversary_socket),0);
 		cout<<"Sent"<<endl;
@@ -697,7 +715,8 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	bool first=(myPlayerId==0?true:false);	
      	
 	//void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen)
-	sharedSecretCreationDH(sd,&adversary_socket,first,username,pubkey_adv,shared_secret, shared_secretLen,username);
+	//void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen,unsigned char* myRandomData,unsigned char* opRandomData)
+	sharedSecretCreationDH(sd,&adversary_socket,first,username,pubkey_adv,shared_secret, shared_secretLen,username,my_nuance,nuance);
 	cout<<"Session key:"<<endl;
 	BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
 	/* ************************************ END SHARED DH *********************************************/
@@ -714,12 +733,16 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	{
 		winner=playerMove(gameMatrix,playerId,myPlayerId,sd,&adversary_socket,&moveNumber, shared_secret,first_move);
 		first_move=false;		
-		moveNumber++;
+		moveNumber=(moveNumber+1)%SIZE_SEQNUMBER;
 		printGame(gameMatrix);
 		playerId++;
 		playerId=playerId%2;
-	}while(!winner); 
+		counter++;
+	}while(!winner && counter!= 6*7); 
 	cout<<"The game ended"<<endl;
+	if(counter==6*7)
+		cout<<"DRAW!!!"<<endl;	
+	//EVP_PKEY_free((EVP_PKEY*)shared_secret);
 	close(sd);
 	return 0;
 }
