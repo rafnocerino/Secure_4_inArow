@@ -21,9 +21,9 @@
 
 using namespace std;
 
-void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, char* username, bool serverCall){
+void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, char* username, bool serverCall,unsigned char* opRandomData){
 	
-	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE+SIZE_DH_PUBLIC_KEY_LEN);
+	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE+SIZE_DH_PUBLIC_KEY_LEN+SIZE_RANDOM_DATA);
 	socklen_t len=sizeof(*sv_addr);
 	int pos = 0;
 	int pkey_len_mex = pkey_len;
@@ -33,6 +33,8 @@ void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, c
 	pos += SIZE_OPCODE;
 	memcpy(msg_to_sign + pos,&pkey_len_mex,SIZE_DH_PUBLIC_KEY_LEN);
 	pos += SIZE_DH_PUBLIC_KEY_LEN;
+	memcpy(msg_to_sign + pos,opRandomData,SIZE_RANDOM_DATA);
+	pos += SIZE_RANDOM_DATA; 
 	
 	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall)){
 		perror("There was an error during the sending of the signed DH public key.\n");
@@ -44,9 +46,9 @@ void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, c
 	
 }
 
-void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall){
+void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall,unsigned char* opRandomData){
 	
-	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + pkey_len);
+	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + pkey_len + SIZE_RANDOM_DATA);
 	
 	socklen_t len=sizeof(*sv_addr);
 	int pos = 0;
@@ -57,6 +59,8 @@ void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigne
 	pos += SIZE_OPCODE;
 	memcpy(msg_to_sign + pos, myDHpubkey,pkey_len);
 	pos += pkey_len;
+	memcpy(msg_to_sign + pos,opRandomData,SIZE_RANDOM_DATA);
+	pos += SIZE_RANDOM_DATA; 
 	
 	if(!sendAndSignMsg(socket,username,msg_to_sign,pos,sv_addr,len,serverCall)){
 		perror("There was an error during the sending of the signed DH public key.\n");

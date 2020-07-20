@@ -44,15 +44,6 @@ struct request{
 	unsigned int sizeMessageReceived;
 };
 
-/*struct timer{
-	int challengeId;
-	int socket;
-	unsigned char* buffer;
-	struct sockaddr_in clientAddress;	
-	bool *exitORerror;
-	uint8_t seqNum;
-};*/
-
 vector<int> intializeIndexesAvailableTID(){
 	vector<int> result;
 	for(int i=0;i<MAX_REQUEST;i++)
@@ -104,54 +95,6 @@ bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int cl
 	}
 	return true;	
 }
-
-/*
-void* timer_thread(void *arg){
-	
-	int challengeId = ((struct timer*)arg)->challengeId;
-	int socket = ((struct timer*)arg)->socket;	
-	unsigned char* buffer = ((struct timer*)arg)->buffer;
-	struct sockaddr_in clientAddress = ((struct timer*)arg)->clientAddress;	
-	bool *exitORerror = ((struct timer*)arg)->exitORerror;
-	uint8_t seqNum = ((struct timer*)arg)->seqNum;
-	memset(buffer,0,BUF_SIZE);	
-
-	sleep(SLEEP);	
-
-	if(removeChallengeDataStructureFromChallengeNumber(challengeId)){
-		//Se la challenge e' presente all'interno della struttura dati significa che non vi e' stata ancora una risposta
-		//Invio il messaggio di timer expired		
-		send_challengeTimerExpired(socket,buffer,seqNum,&clientAddress,sizeof(clientAddress));
-		//Aspetto il relativo ACK
-		if(!receive_ACK(socket,seqNum,&clientAddress,sizeof(clientAddress))){
-			*exitORerror = true;
-		}
-	}
-}*/
-/*
-bool receive_UpdateStatus(int socket,unsigned char* sendBuffer,uint8_t seqNum,sockaddr_in* clientAddress,uint8_t* statusCode){
-	unsigned char* buffer = (unsigned char*)malloc(BUF_SIZE);
-	socklen_t addressLen;
-	int sizeMessageReceived = recvfrom(socket, buffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)clientAddress, &addressLen);
-	char* username = (char *) malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN + SIZE_STATUS_CODE));
-	
-	if(check_updateStatus(socket,buffer,sizeMessageReceived,seqNum,statusCode,username)){
-		printf("Il messaggio di update status ricevuto e' corretto.\n");
-		printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
-		printf("STATUS CODE RICEVUTO: %u.\n",*statusCode);
-		printf("USERNAME. RICEVUTO: %s.\n",username);
-
-		//Aggiorno la struttura dati con l'informazioni degli utenti
-		setStatusUserDataStructure(*statusCode,username);
-
-		send_ACK(socket,sendBuffer,OPCODE_ACK,seqNum,clientAddress,addressLen);
-		return true;	
-	}
-
-	return false;
-}
-*/
-
 
 bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seqNum, sockaddr_in* clientAddress, int clientAddressLen,unsigned char* key){
 	string result = "";
@@ -304,12 +247,38 @@ void* serveClient(void *arg){
 							
 							printf("Il messaggio ricevuto indietro e' correttamente firmato.\n");
 							
+							//Mi metto in attesa del messaggio del client
+							recived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE , 0, (struct sockaddr*)&clientAddress, &clientAddressLen);
+							
+							if(recived == 0){
+								printf("Message with random data from the client not arrived.\n");
+								pthread_exit(NULL);
+							}
+							
+							//Controllo la firma del secondo messaggio arrivato
+							if(!verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,NULL)){
+								printf("The signature of the client message with random is not correct.\n");
+								pthread_exit(NULL);
+							}
+							
+							unsigned char* extractedRandomData = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+							memset(extractedRandomData,0,SIZE_RANDOM_DATA);
+							
+							
+							if(!check_signatureMessageClient(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,extractedRandomData)){
+								printf("The structure of the signature of the client message with random is not correct.\n");
+								pthread_exit(NULL);	
+							}
+							
+							send_signature_message(threadSocket,sendBuffer,extractedRandomData,(char*)serverUsername,certificateSize,&clientAddress,sizeof(clientAddress),true);
+				
+							
 							// Allocazione del buffer per la memorizzazione della chiave di sessione
 							unsigned char* sessionKey = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
 							unsigned int sessionKeyLen = 0;
 							
 							//Chiamata della funzione per derivare il segreto condiviso con Diffie-Hellman:
-							sharedSecretCreationDH(threadSocket,&clientAddress,true,username,NULL,sessionKey,sessionKeyLen);
+							sharedSecretCreationDH(threadSocket,&clientAddress,true,username,NULL,sessionKey,sessionKeyLen,random_data,extractedRandomData);
 
 							printf("DEBUG: ottenuta una chiave di sessione di lunghezza %d.\n",sessionKeyLen);
 							

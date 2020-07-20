@@ -54,7 +54,7 @@ EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
 	return pubkey;
 }
 
-void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen){
+void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen,unsigned char* myRandomData,unsigned char* opRandomData){
   
   
   
@@ -196,10 +196,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	char usernameServer[] = "server"; 
 	
-	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, usernameServer , true);
+	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, usernameServer , true, opRandomData);
 	
 	
-	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,usernameServer,first);
+	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,usernameServer,first,opRandomData);
 	
 	//after sending my DH pubkey, i wait for the reception of the opposite DH pubkey
 	
@@ -217,7 +217,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	check=check_DHmessage_info(buffer,received,pubkey_len);
+	check=check_DHmessage_info(buffer,received,pubkey_len,myRandomData);
 	if(!check){
 		
 		perror("The DH message info received is altered! \n");
@@ -255,7 +255,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	unsigned char* peer_DH_pubkey = (unsigned char*) malloc (pubkey_len);
 	
-	check = check_DHmessage(temp_buf,received,pubkey_len,peer_DH_pubkey);
+	check = check_DHmessage(temp_buf,received,pubkey_len,peer_DH_pubkey,myRandomData);
 	if(!check){
 		
 		printf("The structure of the received DH message is altered! \n");
@@ -332,7 +332,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		
 	}
 	
-	check=check_DHmessage_info(buffer,received,pubkey_len);
+	check=check_DHmessage_info(buffer,received,pubkey_len,myRandomData);
 	if(!check){
 		
 		perror("The DH message info received is altered! \n");
@@ -370,7 +370,7 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
 	
-	check = check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer);
+	check = check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer,myRandomData);
 	if(!check){
 		
 		printf("The structure of the received DH message is altered! \n");
@@ -427,8 +427,8 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 		pthread_exit;
 	} 
 				
-	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false);
-	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first);
+	send_DHmessage_info(sd, pubkey_temp_len,opposite_addr, username , false, opRandomData);
+	send_DHmessage(sd,pubkey_temp_len,opposite_addr,my_dh_pubkey,username,first, opRandomData);
 			
  }
  

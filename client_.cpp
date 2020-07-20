@@ -85,7 +85,6 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 			
 	unsigned char* certificate_buffer = (unsigned char*)malloc(certificate_len+SIZE_OPCODE);
 	unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
-	unsigned char* signature = (unsigned char*)malloc(SIZE_SIGNATURE);
 			
 	int received_cert = recvfrom(sock,certificate_buffer,certificate_len+SIZE_OPCODE,0,(struct sockaddr*)serverPrivAddress, &size);
 	if(received_cert <= 0 ){
@@ -93,7 +92,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 		exit(-1);
 	}
 	
-	check=check_signatureMessageClient(buf,received,random_data,signature);
+	check=check_signatureMessageClient(buf,received,random_data);
 	if(!check){
 		printf("The signature message received by the message used to authenticate ourselves is altered! \n");
 		close(sock);
@@ -218,7 +217,6 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 	send_signature_message(sock,buf,sending_random_data,user,0,serverPrivAddress,size,false);
 	
 	memset(buf,0,BUF_SIZE);
-	int pos = 0;
 	size = sizeof(sv_addr);
 	received = recvfrom(sock, buf, SIZE_MESSAGE_SIGNATURE_MESSAGE, 0, (struct sockaddr*)serverPrivAddress, &size);
 	
@@ -242,7 +240,7 @@ void login(int sock,struct sockaddr_in* serverPrivAddress, char* user, EVP_PKEY*
 		exit(-1);
 	}
 	
-	sharedSecretCreationDH(sock, serverPrivAddress, false,user,server_pubkey,shared_secret,shared_secretLen);
+	sharedSecretCreationDH(sock, serverPrivAddress, false,user,server_pubkey,shared_secret,shared_secretLen,sending_random_data,random_data);
 		
 	
 	

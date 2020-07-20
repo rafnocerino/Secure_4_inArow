@@ -524,12 +524,12 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	}
 	memset(random_data,0,SIZE_RANDOM_DATA);
 	
-	unsigned char* signature= (unsigned char*)malloc(SIZE_SIGNATURE);
+	/*unsigned char* signature= (unsigned char*)malloc(SIZE_SIGNATURE);
 	if(!signature){
 		perror("Error malloc");
 		exit(0);
 	}
-	memset(signature,0,SIZE_SIGNATURE);
+	memset(signature,0,SIZE_SIGNATURE);*/
 
 	if(myPlayerId==0){
 		//sleep(1);
@@ -575,7 +575,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		cout<<"Waiting for data to authenticate"<<endl;
 		recived= recvfrom(sd,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE, 0 , (struct sockaddr*)&adversary_socket, &len);
 
-		int check=check_signatureMessageClient(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data,signature);
+		int check=check_signatureMessageClient(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data);
 		if(!check)
 		{
 			close(sd);
@@ -634,7 +634,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 				exit(-1); 
 			}
 		}
-		int check=check_signatureMessageClient(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data,signature);
+		int check=check_signatureMessageClient(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data);
 		if(!check)
 		{
 			close(sd);
