@@ -40,8 +40,7 @@ bool addNewUserDataStructure(string username,struct sockaddr_in IPaddress){
 		if(found == 0){
 			usersDataStructure.push_back(*newUser);
 		} 	
-	pthread_mutex_unlock(&lockUsersDataStructure);
-	printUserDataStructure();	
+	pthread_mutex_unlock(&lockUsersDataStructure);	
 	return found == -1 ? false : true;
 }
 

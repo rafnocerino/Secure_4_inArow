@@ -77,9 +77,9 @@ int check_move(unsigned char* buffer, int messageLength, uint8_t* expectedSeqNum
 	}
 	memset(plaintext,0,BUF_SIZE);
 
-	cout<<"Messaggio cifrato ricevuto"<<endl;
+	//cout<<"Messaggio cifrato ricevuto"<<endl;
 
-	BIO_dump_fp(stdout,(const char*)buffer,messageLength);
+	//BIO_dump_fp(stdout,(const char*)buffer,messageLength);
 	
 	check=gcm_decrypt(key,buffer,messageLength,plaintext);
 	if(!check){
@@ -89,8 +89,8 @@ int check_move(unsigned char* buffer, int messageLength, uint8_t* expectedSeqNum
 	}
 	memcpy(&actualOpcode, plaintext, SIZE_OPCODE);
 	memcpy(&seqNumMex, plaintext + SIZE_OPCODE, SIZE_SEQNUMBER);
-	cout<<"Questo e' l expected seq nume"<<endl;	
-	cout<<*expectedSeqNum<<endl;
+	//cout<<"Questo e' l expected seq nume"<<endl;	
+	//cout<<*expectedSeqNum<<endl;
 	if((!first_move) && (seqNumMex != *expectedSeqNum)){
 		cout<<"Error: sequence number obtained not correct"<<endl;
 		//malformed 
@@ -161,11 +161,11 @@ void send_Move(int sd, sockaddr_in* sock, uint8_t seq_numb, int playerMoveColumn
 
 	gcm_encrypt(buffer,pos,key,&c);
 		
-	cout<<"Messaggio cifrato "<<endl;
-	BIO_dump_fp(stdout,(const char*)c.all,c.all_len);
-	cout<<"Dimensioni"<<endl;	
-	cout<<MOVE_SIZE<<endl;
-	cout<<c.all_len<<endl;
+	//cout<<"Messaggio cifrato "<<endl;
+	//BIO_dump_fp(stdout,(const char*)c.all,c.all_len);
+	//cout<<"Dimensioni"<<endl;	
+	//cout<<MOVE_SIZE<<endl;
+	//cout<<c.all_len<<endl;
 	ret= sendto(sd, c.all, c.all_len, 0, (struct sockaddr*)sock, sizeof(*sock) );
 	if (ret < pos) {
         	perror("There was an error during the sending of the ACK \n");
@@ -259,19 +259,13 @@ int waitColumnValue(int sd, sockaddr_in* adversary_socket, uint8_t* seq_numb_exp
 		ret=recvfrom(sd,receive_buffer,MOVE_SIZE,0,(struct sockaddr*)adversary_socket,&len);
 		//void check_move(int socket, unsigned char* buffer, int messageLength, uint8_t expectedSeqNum, unsigned char* key){
 		//decrypts and checks malformed
-		cout<<"Sono neella wait ho ricevuto un pacchetto adesso controllo"<<endl;
+		//cout<<"Sono neella wait ho ricevuto un pacchetto adesso controllo"<<endl;
 		playerMoveColumn=check_move(receive_buffer, MOVE_SIZE ,seq_numb_expected,key,first_move);
 		if(playerMoveColumn<0){	
 			if(playerMoveColumn!=-2)			
 				send_malformedMsg(sd,receive_buffer,OPCODE_MALFORMED_MEX,++(*seq_numb_expected),adversary_socket,len,key );
 			exit(-1);		
 		}
-
-
-		
-		//memcpy(&seq_numb_recived,receive_buffer+1,sizeof(seq_numb_recived));
-		//cout<<"Msg received, seq number: "<<seq_numb_recived<<endl;
-		//printf("%u\n",seq_numb_recived);
 					
 		cout<<"Move sent: "<<playerMoveColumn<<endl;
 		
@@ -465,7 +459,7 @@ bool playerMove(char gameMatrix[6][7],int playerId, int myPlayerId, int sd, sock
 int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* username){
 	
 	if(pubkey_adv==NULL){
-		cout<<"CHIAVE VUOTA"<<endl;
+		cout<<"ERRORE: empty key"<<endl;
 	}
 	/* UDP Socket data structure */
 	int sd, new_sd, ret, check_bind;
@@ -482,11 +476,6 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	bool first_move=true;
         initiateGame(gameMatrix);
 
-	//cout<<"********************************************************************************"<<endl;
-	//printf("MoveNumber prima %u",moveNumber);
-	//RAND_poll();
-	//RAND_bytes((unsigned char*)&moveNumber,sizeof(moveNumber));
-	//printf("MoveNumber dopo %u",moveNumber);
 	/********************************** SOCKET CREATION **************************************/
 	sd=socket(AF_INET, SOCK_DGRAM, 0);
 	memset(&adversary_socket, 0, sizeof(adversary_socket));
@@ -571,7 +560,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		if(recived==SIZE_MESSAGE_SIGNATURE_MESSAGE){
 			//check msg signature
 			if(pubkey_adv==NULL)
-				cout<<"CHIAVE VUOTA"<<endl;
+				cout<<"Error: empty key"<<endl;
 			
 			if(!check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){
 				cout<<"The signature is INCORRECT"<<endl;			
@@ -602,7 +591,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		if(recived==SIZE_MESSAGE_SIGNATURE_MESSAGE){
 			//check msg signature
 			if(pubkey_adv==NULL)
-				cout<<"CHIAVE VUOTA"<<endl;
+				cout<<"Error: empty key"<<endl;
 			
 			if(!check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){
 				cout<<"The signature is INCORRECT"<<endl;			
@@ -637,12 +626,11 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 		cout<<"Waiting for data to authenticate"<<endl;
 		int recived= recvfrom(sd,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE, 0 , (struct sockaddr*)&adversary_socket, &len);
 		cout<<"Data to authenticate recived"<<endl;
-		cout<<recived<<endl;
 		if(recived==SIZE_MESSAGE_SIGNATURE_MESSAGE){
 			//check msg signature
 			//BIO_dump_ftp();
 			if(pubkey_adv==NULL)
-				cout<<"CHIAVE VUOTA"<<endl;
+				cout<<"Error: empty key"<<endl;
 			if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,pubkey_adv)){
 				cout<<"The adversary signed the msg"<<endl;
 			}		
@@ -681,7 +669,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 			//check msg signature
 			//BIO_dump_ftp();
 			if(pubkey_adv==NULL)
-				cout<<"CHIAVE VUOTA"<<endl;
+				cout<<"Error: empty key"<<endl;
 			if(verifySignMsg(username,sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,pubkey_adv)){
 				cout<<"The adversary signed the message"<<endl;
 			}		
@@ -717,17 +705,15 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	//void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen)
 	//void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen,unsigned char* myRandomData,unsigned char* opRandomData)
 	sharedSecretCreationDH(sd,&adversary_socket,first,username,pubkey_adv,shared_secret, shared_secretLen,username,my_nuance,nuance);
-	cout<<"Session key:"<<endl;
-	BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
+	//cout<<"Session key:"<<endl;
+	//BIO_dump_fp(stdout,(const char*)shared_secret,shared_secretLen);
 	/* ************************************ END SHARED DH *********************************************/
 	if(first){	
 		cout<<"********************************************************************************"<<endl;
-		printf("MoveNumber prima %u",moveNumber);
 		RAND_poll();
 		RAND_bytes((unsigned char*)&moveNumber,sizeof(moveNumber));
-		printf("MoveNumber dopo %u",moveNumber);	
 	}
-	cout<<""<<endl;
+	cout<<endl;
 	printGame(gameMatrix);
 	do
 	{
@@ -742,7 +728,7 @@ int gameStart(unsigned char* IpAddr,int playerI,EVP_PKEY* pubkey_adv,char* usern
 	cout<<"The game ended"<<endl;
 	if(counter==6*7)
 		cout<<"DRAW!!!"<<endl;	
-	//EVP_PKEY_free((EVP_PKEY*)shared_secret);
+	free(shared_secret);
 	close(sd);
 	return 0;
 }

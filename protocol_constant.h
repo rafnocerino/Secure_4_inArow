@@ -19,6 +19,7 @@
 #define SIZE_CERTIFICATE_LEN 4
 #define SIZE_DH_PUBLIC_KEY_LEN 4
 #define SIZE_TAG 16 
+#define SIZE_USERNAME 255
 
 const int SIZE_IV = EVP_CIPHER_iv_length(EVP_aes_256_gcm());
 const int SIZE_AAD = EVP_CIPHER_iv_length(EVP_aes_256_gcm());

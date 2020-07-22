@@ -1,7 +1,7 @@
 #include <unistd.h>
-#include <sys/socket.h> //[]
+#include <sys/socket.h>
 #include <arpa/inet.h>
-#include <netinet/in.h> //[]
+#include <netinet/in.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <string.h>
@@ -78,10 +78,15 @@ bool receive_ACK(int socket,uint8_t expSeqNum, sockaddr_in* clientAddress,int cl
 	uint8_t seqNum = expSeqNum;
 	uint8_t opcode = OPCODE_ACK;
 	unsigned char* buffer = (unsigned char*)malloc(BUF_SIZE);
+	
+	if(!buffer){
+		printf("Error: wrong allocation of a buffer.\n");
+		return false;
+	}
+	
 	socklen_t addressLen = sizeof(clientAddress);
 	memset(buffer,0,BUF_SIZE);
 	int sizeMessageReceived = recvfrom(socket,buffer,SIZE_MESSAGE_ACK, 0, (struct sockaddr*)clientAddress,&addressLen);
-	printf("---> %d.\n",sizeMessageReceived);
 	if(sizeMessageReceived < SIZE_MESSAGE_ACK){
 		perror("There was an error during the reception of the ACK ! \n");
 		memset(buffer, 0, BUF_SIZE);
@@ -104,7 +109,6 @@ bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seq
 		if(i < availableUserList.size() - 1)
 			result += ";"; 
 	}
-	printf("LISTA DI UTENTI ATTUALMENTE IN ATTESA DI UNA SFIDA: %s.\n",result.c_str());
 	int resultLength = result.length();
 	int chunkPos = 0;
 	const char *result_c = result.c_str();
@@ -136,30 +140,22 @@ bool send_AvailableUserListTotal(int socket, unsigned char* buffer, uint8_t& seq
 bool privateKeyExist(string fileName){
 	string filePath = "./private keys/" + fileName + "_prv.pem";
 	FILE *tofind;
-	if ((tofind = fopen(filePath.c_str(), "r")))
-    {
+	if ((tofind = fopen(filePath.c_str(), "r"))){
         fclose(tofind);
         return true;
     }
     return false;
-}
-
-unsigned char* readFileBytes(const char *name)  {  
-    FILE *fl = fopen(name, "rb");  
-    fseek(fl, 0, SEEK_END);  
-    long len = ftell(fl);  
-    unsigned char* ret = (unsigned char*)malloc(len);  
-    fseek(fl, 0, SEEK_SET);  
-    fread(ret, 1, len, fl);  
-    fclose(fl);  
-	return ret;  
-}  
+} 
 
 unsigned char* readFileBytes(const char *name,int &sizeFile){  
     FILE *fl = fopen(name, "rb");  
     fseek(fl, 0, SEEK_END);  
     sizeFile = ftell(fl);  
     unsigned char* ret = (unsigned char*)malloc(sizeFile);  
+    if(!ret){
+		printf("Error: wrong allocation of a buffer.\n");
+		pthread_exit(NULL);
+	}
     fseek(fl, 0, SEEK_SET);  
     fread(ret, 1, sizeFile, fl);  
     fclose(fl);  
@@ -170,23 +166,36 @@ unsigned char* readFileBytes(const char *name,int &sizeFile){
 void* serveClient(void *arg){
 	unsigned int sizeMessageReceived = ((struct request*)arg)->sizeMessageReceived;
 	unsigned char* loginMessage;
-	loginMessage = (unsigned char*) malloc(sizeMessageReceived);	
+	loginMessage = (unsigned char*)malloc(sizeMessageReceived);
+	if(!loginMessage){
+		printf("Error: wrong allocation of a buffer.\n");
+		pthread_exit(NULL);	
+	}	
     memcpy(loginMessage,((struct request*)arg)->loginMessage, sizeMessageReceived);
 	int threadIndex = ((struct request*)arg)->threadIndex;
 	socklen_t clientAddressLen = ((struct request*)arg)->clientAddressLen;
 	struct sockaddr_in clientAddress = ((struct request*)arg)->clientAddress;
-	printf("Messaggio ricevuto:\n");
- 	BIO_dump_fp (stdout, (const char *)loginMessage, sizeMessageReceived);
 	//Numero di sequenza proprio della coppia client-server specifica
 	uint8_t seqNum = 0;	
 	//Inizializzazione in maniera casuale del sequence number per i messaggi inviati dal server	utilizzando OpenSSL
 	RAND_poll();
     RAND_bytes((unsigned char*)&seqNum,SIZE_SEQNUMBER);
+	int challengeId = -1;
 	char* username;
-	username = (char *)malloc(255);
-	int challengeId = -1;	
+	username = (char *)malloc(SIZE_USERNAME);	
 	unsigned char* sendBuffer;
-	sendBuffer = (unsigned char*)malloc(BUF_SIZE);	
+	sendBuffer = (unsigned char*)malloc(BUF_SIZE);
+	unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);	
+	unsigned char* extractedRandomData = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+	unsigned char* sessionKey = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+	unsigned char* ip = (unsigned char*)malloc(SIZE_IP_ADDRESS);
+	unsigned char* key =  (unsigned char*)malloc(SIZE_PUBLIC_KEY);
+	
+	if(!sendBuffer || !username || !random_data || !extractedRandomData || !sessionKey || !ip || !key){
+		printf("Error: wrong allocation of a buffer.\n");
+		pthread_exit(NULL);	
+	}
+
 	int threadSocket = socket(AF_INET,SOCK_DGRAM,0);
 	struct sockaddr_in threadSockAddr;	
 	threadSockAddr.sin_family=AF_INET;
@@ -196,8 +205,7 @@ void* serveClient(void *arg){
 		printf("ERRORE: e' stato riscontrato un errore nella fase di bind del socket per comunicare con il server.\n");
 	}else{
 		if(check_login(threadSocket,loginMessage,sizeMessageReceived,username)){
-			printf("Il messaggio di login ricevuto e' corretto.\n");
-			printf("USERNAME. RICEVUTO: %s.\n",username);
+			printf("INFO: recived a correct login message from user %s.\n",username);
 			memset(sendBuffer, 0, BUF_SIZE);
 			
 			// Controllo che l'utente abbia un file contente la chiave pubblica associato:
@@ -206,10 +214,9 @@ void* serveClient(void *arg){
 				// Leggo il file del certificato: 
 				int certificateSize = 0;
 				unsigned char* certificate = readFileBytes(serverCertificateFilePath,certificateSize);
-				printf("DEBUG: certificate size=%d\n",certificateSize);
+				printf("INFO: correctly read %d bytes of the server cerfificate.\n",certificateSize);
 				
 				//Generazione dei byte randomici da firmare:
-				unsigned char* random_data = (unsigned char*)malloc(SIZE_RANDOM_DATA);
 				RAND_poll();
 				RAND_bytes(random_data,SIZE_RANDOM_DATA);
 				
@@ -232,10 +239,8 @@ void* serveClient(void *arg){
 				
 				setsockopt(threadSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&time, sizeof(time));
 				//La prossima recive from avrà un timer:
+				clientAddressLen = sizeof(clientAddress);
 				int recived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE , 0, (struct sockaddr*)&clientAddress, &clientAddressLen);
-				
-				printf("DEBUG: size signature message = %d.\n",SIZE_MESSAGE_SIGNATURE_MESSAGE);
-				printf("DEBUG: recived = %d.\n",recived);
 				
 				if(recived == SIZE_MESSAGE_SIGNATURE_MESSAGE){
 					
@@ -245,7 +250,7 @@ void* serveClient(void *arg){
 						//Controllo della struttura del messaggio firmato:
 						if(check_signature_message_server(sendBuffer,SIZE_MESSAGE_SIGNATURE_MESSAGE,random_data)){
 							
-							printf("Il messaggio ricevuto indietro e' correttamente firmato.\n");
+							printf("INFO: correctly recive the signed message from the user %s.\n",username);
 							
 							//Mi metto in attesa del messaggio del client
 							recived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_SIGNATURE_MESSAGE , 0, (struct sockaddr*)&clientAddress, &clientAddressLen);
@@ -261,7 +266,6 @@ void* serveClient(void *arg){
 								pthread_exit(NULL);
 							}
 							
-							unsigned char* extractedRandomData = (unsigned char*)malloc(SIZE_RANDOM_DATA);
 							memset(extractedRandomData,0,SIZE_RANDOM_DATA);
 							
 							
@@ -274,38 +278,28 @@ void* serveClient(void *arg){
 				
 							
 							// Allocazione del buffer per la memorizzazione della chiave di sessione
-							unsigned char* sessionKey = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
+							
 							unsigned int sessionKeyLen = 0;
 							
 							//Chiamata della funzione per derivare il segreto condiviso con Diffie-Hellman:
 							sharedSecretCreationDH(threadSocket,&clientAddress,true,username,NULL,sessionKey,sessionKeyLen,random_data,extractedRandomData);
 
-							printf("DEBUG: ottenuta una chiave di sessione di lunghezza %d.\n",sessionKeyLen);
-							
-							BIO_dump_fp (stdout, (const char*)sessionKey ,sessionKeyLen); 
+							printf("INFO: correctly establish a session key of %d bytes with the user %s.\n",sessionKeyLen,username); 
 							
 							addKeyFromUsername(sessionKey,username);	
 							
 							//Invio della Available User List:
 							if(send_AvailableUserListTotal(threadSocket, sendBuffer, seqNum, &clientAddress, sizeof(clientAddress),sessionKey)){
 							
-				//send_loginOK(threadSocket,sendBuffer,OPCODE_LOGIN_OK,seqNum,&clientAddress, sizeof(clientAddress));
-	
-				//if(receive_ACK(threadSocket,seqNum,&clientAddress,sizeof(clientAddress))){
-						uint8_t statusCode = STATUS_IDLE;
-						bool exitORerror = false;
-						unsigned char* ip = (unsigned char*)malloc(SIZE_IP_ADDRESS);
-						unsigned char* key =  (unsigned char*)malloc(SIZE_PUBLIC_KEY);
-						uint8_t seqNum2;
+							uint8_t statusCode = STATUS_IDLE;
+							bool exitORerror = false;
 
-						while(!exitORerror){
+							while(!exitORerror){
 
-							printf("Sono risalito.\n");
-							memset(sendBuffer, 0, BUF_SIZE);
-							sizeMessageReceived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)&clientAddress, &clientAddressLen); 
-							seqNum = seqNum + 1;
-							printf("Porta da cui ricevo il messaggio -> %s\n",inet_ntoa(clientAddress.sin_addr));
-							if(statusCode == STATUS_CHALLENGING){
+								memset(sendBuffer, 0, BUF_SIZE);
+								sizeMessageReceived = recvfrom(threadSocket,sendBuffer, SIZE_MESSAGE_UPDATE_STATUS, 0, (struct sockaddr*)&clientAddress, &clientAddressLen); 
+								seqNum = seqNum + 1;
+								if(statusCode == STATUS_CHALLENGING){
 
 								//Nel caso in cui l'utente si mette in sfida possiamo:
 								//a- Mandare un messaggio di update status
@@ -313,7 +307,13 @@ void* serveClient(void *arg){
 								//c- Mandare un messaggio di sfida		
 
 								//Nel caso di una sfida va fatto spazio per l'username dell'utente sfidato					
-								char* usernameSfidato = (char*)malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + 1));								
+								char* usernameSfidato = (char*)malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_CHALLENGE_NUMBER + SIZE_LEN + 1));	
+								
+								if(!usernameSfidato){
+									printf("Error: wrong allocation of a buffer.\n");
+									pthread_exit(NULL);	
+								}
+															
 								if(check_updateStatus(threadSocket,sendBuffer,sizeMessageReceived,seqNum,statusCode,username,sessionKey)){
 									//Se arriva un update status cambio lo stato dell'utente nella struttura dati
 									setStatusUserDataStructure(statusCode,username);
@@ -328,7 +328,7 @@ void* serveClient(void *arg){
 									if(challengeId == -1){
 										//Nel caso in cui viene restituito -1 significa che l'utente sfidato non stava aspettando 
 										//una challenge perciò occorre inviare un messaggio di challenge unavailable
-										printf("Errore: challengeId pari a -1.\n");
+										printf("INFO: user %s request to challenge user %s but the latter is no more available.\n",username,usernameSfidato);
 										memset(sendBuffer, 0, BUF_SIZE);
 										seqNum = seqNum + 1;	
 										send_challengeUnavailable(threadSocket,sendBuffer,seqNum,&clientAddress,sizeof(clientAddress),sessionKey);
@@ -352,24 +352,11 @@ void* serveClient(void *arg){
 											
 																							
 										if(receive_ACK(threadSocket,seqNum,&utenteSfidatoAddress,sizeof(utenteSfidatoAddress),getKeyFromUsername(usernameSfidato))){
-											/*//Estrazione del nuovo sequence number
-											seqNum = seqNum + 1;
-											//Creo il thread per la gestione del timer:
-											pthread_t tid;	
-											struct timer* currentTimer = (struct timer*)malloc(sizeof(struct timer));
-											currentTimer->challengeId = challengeId;
-											currentTimer->socket = threadSocket;
-											currentTimer->buffer = sendBuffer;
-											currentTimer->clientAddress = clientAddress;
-											currentTimer->exitORerror = &exitORerror;
-											currentTimer->seqNum = seqNum;
-												if(pthread_create(&tid,NULL,timer_thread,(void*)currentTimer) != 0 ){
-													printf("ERRORE: e' stato riscontrato un errore nella fase di creazione di un thread.\n");
-												}*/	
-											}else{
+												
+										}else{
 												printf("Errore nella ricezione dell'ACK relativo alla sfida.\n");
 												exitORerror = true;					
-											}
+										}
 										}else{
 											printf("Errore nell'ottenimento dell'indirizzo dell'utente sfidato.\n");
 											exitORerror = true;
@@ -403,17 +390,14 @@ void* serveClient(void *arg){
 											
 											//Vanno recuperati gli indirizzi degli utenti:
 											struct sockaddr_in sfidante_addr;
-											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){
-												printf("IP SFIDANTE: %s\n",inet_ntoa(sfidante_addr.sin_addr));													
+											if(getIPUserDataStructure(getChallengesDataStructure().at(challengeIndex).username1,&sfidante_addr)){													
 												seqNum = seqNum + 1;
 												unsigned char* temp_pubkey;
 												int ret = serialize_PEM_Pub_Key_From_File(username,&temp_pubkey);
-												printf("DEBUG: ret_serialize = %d\n",ret);
 												if(ret == SIZE_PUBLIC_KEY){ 	 
 												send_challengeStart(threadSocket,sendBuffer,inet_ntoa(clientAddress.sin_addr),temp_pubkey,seqNum,&sfidante_addr,sizeof(sfidante_addr),getKeyFromUsername(getChallengesDataStructure().at(challengeIndex).username1));
 												// Aspettiamo di ricevere l'ACK
 												if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr),getKeyFromUsername(getChallengesDataStructure().at(challengeIndex).username1))){
-													printf("1.\n");
 													// Una volta ricevuto l'ACK posso inviare la challenge start al secondo utente
 													int ret = serialize_PEM_Pub_Key_From_File(getChallengesDataStructure().at(challengeIndex).username1,&temp_pubkey);
 													if(ret ==  SIZE_PUBLIC_KEY){
@@ -469,7 +453,7 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 											send_challengeRefused(threadSocket,sendBuffer,seqNum,challengeId,&sfidante_addr,sizeof(sfidante_addr),getKeyFromUsername(getChallengesDataStructure().at(challengeIndex).username1));
 											//Attendo l'ACK
 											if(receive_ACK(threadSocket,seqNum,&sfidante_addr,sizeof(sfidante_addr),getKeyFromUsername(getChallengesDataStructure().at(challengeIndex).username1))){
-												printf("Challenge refused inoltrata correttamente.\n");
+												printf("INFO: correctly send the challenge refuse message from %s.\n",username);
 												//Mando l'ACK al mio utente 
 												send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress),sessionKey);
 												//Poi la elimino dalla struttura dati
@@ -489,10 +473,6 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen,sessionKey);
 									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
-								/*}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username)){
-									//Invio il corrispondente ACK
-									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress));
-									exitORerror = true;*/
 								}else{
 									printf("Errore: arrivato un messaggio di un tipo non riconosciuto.\n");
 									send_malformedMsg(threadSocket,sendBuffer,OPCODE_MALFORMED_MEX,seqNum,&clientAddress,clientAddressLen,sessionKey);
@@ -505,8 +485,7 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 									setStatusUserDataStructure(statusCode,username);
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,clientAddressLen,sessionKey);
-									//printf("Porta a cui invio l'ack di update status -> %s\n",inet_ntoa(clientAddress.sin_addr));
-									printf("Ricevuto un messaggio di update status nuovo stato %u.\n",statusCode);
+									printf("INFO: changed the status of the user %s in %u.\n",username,statusCode);
 								}else if(check_exit(threadSocket,sendBuffer,sizeMessageReceived,seqNum,username,sessionKey)){
 									//Invio il corrispondente ACK
 									send_ACK(threadSocket,sendBuffer,OPCODE_ACK,seqNum,&clientAddress,sizeof(clientAddress),sessionKey);
@@ -543,109 +522,6 @@ send_challengeStart(threadSocket,sendBuffer,inet_ntoa(sfidante_addr.sin_addr),te
 	}
 	close(threadSocket);
 }
-
-
-
-/*
-					}else{
-						printf("Errore nell'invio della prima lista degli utenti disponibili.\n");
-					}
-				}else{
-
-				}		*/
-
-				//Mi metto in attesa dell'ack
-				/*memset(sendBuffer, 0, BUF_SIZE);
-				sizeMessageRecived = recvfrom(threadSocket, sendBuffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)clientAddress, &clientAddressLen);
-
-				if(sizeMessageRecived < SIZE_MESSAGE_ACK){
-					perror("There was an error during the reception of the ACK ! \n");
-					memset(sendBuffer, 0, BUF_SIZE);
-					send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
-					close(threadSocket);
-				}else{
-					if(check_ack(threadSocket,sendBuffer,sizeMessageRecived,OPCODE_ACK,seqNum)){
-						
-						//Invio della lista di utenti disponibili
-						
-
-							uint8_t statusCode = 0;
-							if(check_updateStatus(sendBuffer,sizeMessageReceived,&seqNum,&statusCode,username)){
-								
-								
-								
-								
-
-								//Invio il corrispondente ACK
-								memset(sendBuffer, 0, BUF_SIZE);								
-								
-								if(statusCode == STATUS_CHALLENGING){
-									//Nel caso della challenging l'utente può fare due cose inviare una richiesta o mettersi in attesa
-									memset(sendBuffer, 0, BUF_SIZE);
-									sizeMessageReceived = recvfrom(threadSocket, sendBuffer, SIZE_MESSAGE_CHALLENGE_REQUEST, 0, (struct sockaddr*)clientAddress, &clientAddressLen);
-									int challenge_id;									
-									char* usernameSfidato;
-									usernameSfidato = (char *) malloc(sizeMessageReceived - (SIZE_OPCODE + SIZE_SEQNUMBER + SIZE_LEN));
-									if(check_challengeRequest(threadSocket,sendBuffer,sizeMessageReceived,OPCODE_CHALLENGE_REQUEST,0,usernameSfidato,challenge_id,seqNum)){
-										printf("Arrivata una richiesta di challenge.\n");
-										printf("SEQ.NUMBER RICEVUTO: %u.\n",seqNum);
-										printf("UTENTE SFIDATO: %s.\n",usernameSfidato);
-										//Invio il relativo ACK
-										memset(sendBuffer, 0, BUF_SIZE);
-										send_ACK(threadSocket, sendBuffer,OPCODE_ACK, seqNum, &clientAddress, sizeof(clientAddress));
-										//Controllo che l'utente sfidato sia in attesa di una sfida
-										if(getStatusUserDataStructure(usernameSfidato) != STATUS_WAITING){
-											//L'utente sfidato non sta aspettando una sfida
-
-											pthread_mutex_lock(&lockSequenceNumber);
-												seqNum = lastSequenceNumber;
-												lastSequenceNumber = (lastSequenceNumber + 1) % 256;
-											pthread_mutex_unlock(&lockSequenceNumber);
-											
-											send_challengeUnavailable(threadSocket,sendBuffer,seqNum,&clientAddress,sizeof(clientAddress));
-											//Aspetto il relativo ACK
-											memset(sendBuffer, 0, BUF_SIZE);
-                                            sizeMessageReceived = recvfrom(threadSocket, sendBuffer, SIZE_MESSAGE_ACK, 0, (struct sockaddr*)clientAddress, &clientAddressLen);
-											if(sizeMessageReceived < SIZE_MESSAGE_ACK){
-												perror("There was an error during the reception of the ACK ! \n");
-												memset(sendBuffer, 0, BUF_SIZE);
-												send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
-												close(threadSocket);
-											}else{
-
-											}
-										}else{
-											//L'utente sta aspettando una sfida
-										} 
-									}
-								}else if(statusCode == STATUS_WAITING){
-
-								}
-							}else{
-								printf("Il messaggio di update status ricevuto non e' corretto.\n");
-								memset(sendBuffer, 0, BUF_SIZE);
-								send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
-								close(threadSocket);		
-							}
-						}
-					}else{
-						printf("L'ACK ricevuto non e' corretto.\n");
-						memset(sendBuffer, 0, BUF_SIZE);
-						send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
-						close(threadSocket);
-					}
-				}
-			}else{
-				printf("Errore nella fase di login dell'utente.\n");
-				send_loginNO(threadSocket,sendBuffer,OPCODE_LOGIN_NO,seqNum,&clientAddress, sizeof(clientAddress));
-				close(threadSocket);
-			}		
-		}else{
-			printf("Il messaggio di login ricevuto e' malformato.\n");
-			send_malformedMsg(threadSocket, sendBuffer,OPCODE_MALFORMED_MEX, seqNum, &clientAddress, sizeof(clientAddress));
-			close(threadSocket);
-		}
-	}*/
 	pthread_mutex_lock(&lockIndexesAvailableTID);
 		indexesAvailableTID.push_back(threadIndex);	
 	pthread_mutex_unlock(&lockIndexesAvailableTID);
@@ -660,10 +536,10 @@ int main(){
 	int serverSocket;
 	struct sockaddr_in serverAddress;
 	memset(&serverAddress,0,sizeof(serverAddress));
-	serverSocket = socket(AF_INET,SOCK_DGRAM,0); //[]
+	serverSocket = socket(AF_INET,SOCK_DGRAM,0); 
 	serverAddress.sin_family = AF_INET;
-	serverAddress.sin_port = SERVER_PORT; //[]
-	serverAddress.sin_addr.s_addr = INADDR_ANY; //[]
+	serverAddress.sin_port = SERVER_PORT; 
+	serverAddress.sin_addr.s_addr = INADDR_ANY; 
 	if(bind(serverSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0){ //[]
 		printf("ERRORE: e' stato riscontrato un errore nella fase di bind.\n");
 		exit(-1);
@@ -673,6 +549,11 @@ int main(){
 	pthread_t tid[MAX_REQUEST];
 	while(1){
 		struct request* currentRequest = (struct request*)malloc(sizeof(struct request));
+		
+		if(!currentRequest){
+			printf("ERROR: server was unable to allocate a structure.\n");
+			exit(-1);
+		}
 		unsigned int sizeClientAddress = sizeof(struct sockaddr_in);
 		sem_wait(&indexesSem);
 		pthread_mutex_lock(&lockIndexesAvailableTID);
@@ -691,15 +572,3 @@ int main(){
 	sem_destroy(&indexesSem);
 	return 0;
 }
-
-/*----------------------------------COMMENTI----------------------------------------------------------------------------
-[] sys/socket.h definisce i seguenti metodi:
-   - int socket(int domain, int type, int protocol)	
-[] netinet/in.h contiene la struttura dati sockaddr_in necessaria a contenere le informazioni su porta e indirizzo
-[] il metodo socket crea un socket in particolare PF_INET serve a specificare che si utilizzano indirizzi IPv4, SOCK_DGRAM che verrà usato il protocollo UDP mentre il terzo parametro può essere trascurato
-[] htons assicura che i numeri vengono memorizzati in memoria secondo il byte order della rete che prevede che i byte più significativi vengano messi prima quindi assicura che i numeri siano memorizzati come lo sarebbero in una macchina big endian. 
-[] Nel server INADDR_ANY è un argomento della bind che indica che il socket deve mettersi in ascolto su tutte le interfacce.
-[] Il metodo bind serve ad assegnare un indirizzo locale ad un socket (quindi la prima metà di un socket pair) e serve quindi a specificare su quale IP:porta il server si metterà in ascolto. Il client invece non deve andare a invocare la bind in quanto sarà il kernel ad assegnargli la porta mentre l'IP sarà quello dell'interfaccia di rete utilizzata
-[] Definizione delle buffer che conterrà i messaggi di login dei vari client che arrivano al server
-[] A questo punto sia che il messaggio sia corretto sia che non lo sia devo creare un nuovo socket per rispondere al client*/
-

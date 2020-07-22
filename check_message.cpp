@@ -51,6 +51,10 @@ bool check_ack(int socket, unsigned char* buffer, int messageLength, uint8_t exp
     int pos = 0;
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc(SIZE_OPCODE + SIZE_SEQNUMBER);
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -109,6 +113,10 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -157,7 +165,6 @@ bool check_challengeRequest(int socket, unsigned char* buffer, int messageLength
 	
 	if(challengedUser != NULL){
 		memcpy(challengedUser,challenging_user + flush_len,flush_len);
-		printf("-> challenged user: %s.\n",challengedUser);
 	}	
 	
     memset(challenging_user + flush_len, 0, 255 - flush_len);
@@ -182,6 +189,10 @@ bool check_challengeUnavailable(int socket, unsigned char* buffer, int messageLe
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -229,6 +240,10 @@ bool check_challengeRefused(int socket,unsigned char* buffer, int messageLength,
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
@@ -278,7 +293,10 @@ bool check_challengeStart(int socket,unsigned char* buffer, int messageLength,ui
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
 	if(!check){
@@ -335,7 +353,10 @@ bool check_updateStatus(int socket,unsigned char* message,int messageLength,uint
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,message,messageLength,plaintext);	
 	if(!check){
@@ -405,7 +426,10 @@ bool check_exit(int socket,unsigned char* message,int messageLength,uint8_t expe
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_IV - SIZE_TAG);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,message,messageLength,plaintext);	
 	if(!check){
@@ -458,7 +482,10 @@ bool check_challengeAccepted(int socket,unsigned char* buffer,int messageLength,
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
 	if(!check){
@@ -510,7 +537,10 @@ bool check_available_userList(int socket, unsigned char* buffer,int& list_len,in
 	
 	bool check;
 	unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);	
 	if(!check){
@@ -562,6 +592,11 @@ bool check_signature_message_server(unsigned char* buffer,int messageLength,unsi
 	uint8_t opcodeMex = 0;
 	int clearMessageSize = messageLength - SIZE_SIGNATURE;
 	unsigned char* randomDataMex = (unsigned char*)malloc(SIZE_RANDOM_DATA);
+	if(!randomDataMex){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
+	
 	memset(randomDataMex,0,SIZE_RANDOM_DATA);
 	memcpy(&opcodeMex,buffer,SIZE_OPCODE);
 	if(opcodeMex != OPCODE_SIGNATURE_MESSAGE){
@@ -626,22 +661,18 @@ bool check_DHmessage(unsigned char* buffer,int messageLength,int pkey_len,unsign
 	memcpy(peer_dh_pubkey,buffer+pos,pkey_len);
 	pos+=pkey_len;
 	
-	printf("Memcpy\n");
 	if(memcmp(myRandomData,buffer+pos,SIZE_RANDOM_DATA) != 0){
 		return false;
 	}
 	
-	printf("OPCODE\n");
 	if(rcv_opcode != OPCODE_DH_MESSAGE){
 		return false;
 	}
 	
-	printf("MESSAGE size \n");
-	printf("%d \n",messageLength);
 	if( messageLength != SIZE_OPCODE + SIZE_SIGNATURE + pkey_len + SIZE_RANDOM_DATA){
 		return false;
 	}
-	printf("MESSAGE size fine \n");
+	
 	return true;
 	
 }
@@ -657,16 +688,12 @@ bool check_DHmessage_info(unsigned char* buffer, int messageLength,int& pkey_len
 	memcpy(&pkey_lenMex,buffer + pos, SIZE_DH_PUBLIC_KEY_LEN);
 	pos+=SIZE_DH_PUBLIC_KEY_LEN;
 	pkey_len = pkey_lenMex;
-	printf("Memcpy info\n");
 	if(memcmp(myRandomData,buffer + pos,SIZE_RANDOM_DATA) != 0){
 		return false;
 	}
-	//cout<<"OPCODE info"<<endl;
 	if(rcv_opcode != OPCODE_DH_MESSAGE_INFO){
 		return false;
 	}
-	
-	//cout<<"msg len info"<<endl;
 	if( messageLength != SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN + SIZE_SIGNATURE + SIZE_RANDOM_DATA){
 		return false;
 	}
@@ -685,7 +712,10 @@ bool check_FirstAvailable_userList(int socket, unsigned char* buffer,int& list_l
     
     bool check;
     unsigned char* plaintext = (unsigned char*) malloc (messageLength - SIZE_TAG - SIZE_IV);
-
+	if(!plaintext){
+		printf("ERROR: unable to allocate a buffer.\n");
+		return false;
+	}
 
     check=gcm_decrypt(key,buffer,messageLength,plaintext);    
     if(!check){

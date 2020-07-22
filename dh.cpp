@@ -56,8 +56,6 @@ EVP_PKEY* deserialize_PEM_pubkey(int pubkeySize,unsigned char* pubkey_buf){
 
 void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool first,char* username,EVP_PKEY* oppositeKey,unsigned char* sharedSecret,unsigned int& sharedSecretLen,unsigned char* myRandomData,unsigned char* opRandomData){
   
-  
-  
   int ret; 
   bool check;
   unsigned char buffer[BUF_SIZE];
@@ -69,12 +67,12 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
   time.tv_usec=0;
   setsockopt(sd, SOL_SOCKET, SO_RCVTIMEO,&time,sizeof(time));
  
- /* GENERATE KEY */
+  /* GENERATE KEY */
   printf("-------STARTING DH PROTOCOL TO DERIVE SHARED KEY !---------\n");
- EVP_PKEY *params;
+  EVP_PKEY *params;
 
  
- params = EVP_PKEY_new();
+  params = EVP_PKEY_new();
  
  
  if(params == NULL) {
@@ -240,6 +238,11 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
 	
+	if(!temp_buf){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
 	//received += SIZE_OPCODE + SIZE_DH_PUBLIC_KEY_LEN;
@@ -254,6 +257,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	unsigned char* peer_DH_pubkey = (unsigned char*) malloc (pubkey_len);
+	if(!peer_DH_pubkey){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	check = check_DHmessage(temp_buf,received,pubkey_len,peer_DH_pubkey,myRandomData);
 	if(!check){
@@ -299,6 +306,11 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	/*Here we allocate buffer for the shared secret*/
 	skey = (unsigned char*)( malloc( int(skeylen) ) );
+	if(!skey){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	if (!skey){
 		
 		perror("There was an error during the memory allocation for the shared secret \n");
@@ -354,6 +366,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
+	if(!temp_buf){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
@@ -369,6 +385,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
+	if(!pkeyServerBuffer){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	check = check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer,myRandomData);
 	if(!check){
@@ -414,6 +434,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 				
 	// Alloco il buffer per il segreto condiviso
 	skey = (unsigned char*)(malloc(int(skeylen)));
+	if(!skey){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 				
 	if(!skey){
 		perror("Errore: durante il protocollo DH impossibile allocare skey.\n");
@@ -539,14 +563,18 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
  }
  
  
-//here i extract my dh pubkey writing it on a file
+	//here i extract my dh pubkey writing it on a file
+	string name = "./tmp/mydhpubkey";
+	name+=reinterpret_cast<const char*>(username);
+	name+=".pem"; 
  
- FILE* file_mydhpubkey = fopen("./tmp/mydhpubkey.pem","wb");
- if(!file_mydhpubkey){
-	perror("Error during the creation of temp my DH public key file! \n");
-	close(sd);
-	pthread_exit(NULL);
- } 
+ 
+	FILE* file_mydhpubkey = fopen(name.c_str(),"wb");
+	if(!file_mydhpubkey){
+		perror("Error during the creation of temp my DH public key file! \n");
+		close(sd);
+		pthread_exit(NULL);
+	} 
  
   if(PEM_write_PUBKEY(file_mydhpubkey, my_dhkey)<=0){
 	 perror("Error during the storing of temp my DH public key ! \n");
@@ -556,16 +584,16 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
  
 	fclose(file_mydhpubkey);
  
-  file_mydhpubkey = fopen("./tmp/mydhpubkey.pem","rb");
+	file_mydhpubkey = fopen(name.c_str(),"rb");
 
  
- EVP_PKEY* pubkey_temp = PEM_read_PUBKEY(file_mydhpubkey,NULL,NULL,NULL);
+	EVP_PKEY* pubkey_temp = PEM_read_PUBKEY(file_mydhpubkey,NULL,NULL,NULL);
  
- if(pubkey_temp == NULL){
-	 printf("Errore: impossibile leggere la chiave pubblica per il protocollo DH.\n");
-	 close(sd);
-	 pthread_exit(NULL);
- }
+	if(pubkey_temp == NULL){
+		printf("Errore: impossibile leggere la chiave pubblica per il protocollo DH.\n");
+		close(sd);
+		pthread_exit(NULL);
+	}
  
  
 	unsigned char* my_dh_pubkey;  
@@ -575,7 +603,7 @@ void sharedSecretCreationDH(int sd, struct sockaddr_in* opposite_addr, bool firs
 
  fclose(file_mydhpubkey); 
  
- removeFile("./tmp/mydhpubkey.pem");
+ removeFile(name.c_str());
  
 // Inizializzazione del contesto per derivare il segreto condiviso:
 unsigned char *skey;
@@ -642,6 +670,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
+	if(!temp_buf){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
@@ -657,6 +689,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	unsigned char* peer_DH_pubkey = (unsigned char*) malloc (pubkey_len);
+	if(!peer_DH_pubkey){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	check = check_DHmessage(temp_buf,received,pubkey_len,peer_DH_pubkey,myRandomData);
 	if(!check){
@@ -722,6 +758,11 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	/*Here we allocate buffer for the shared secret*/
 	skey = (unsigned char*)( malloc( int(skeylen) ) );
+	if(!skey){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	if (!skey){
 		
 		perror("There was an error during the memory allocation for the shared secret \n");
@@ -777,6 +818,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	//memcpy(&pubkey_len,buffer+SIZE_OPCODE,SIZE_DH_PUBLIC_KEY_LEN);
 	
 	unsigned char* temp_buf = (unsigned char*)malloc(SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA);
+	if(!temp_buf){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	received = recvfrom(sd,temp_buf,SIZE_OPCODE + SIZE_SIGNATURE + pubkey_len + SIZE_RANDOM_DATA,0,(struct sockaddr*)opposite_addr,&size);
 	
@@ -792,6 +837,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 	
 	
 	unsigned char* pkeyServerBuffer = (unsigned char*)malloc(pubkey_len);
+	if(!pkeyServerBuffer){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	check = check_DHmessage(temp_buf,received,pubkey_len,pkeyServerBuffer,myRandomData);
 	if(!check){
@@ -835,6 +884,10 @@ if(EVP_PKEY_derive_init(ctx_drv) <= 0){
 				
 				// Alloco il buffer per il segreto condiviso
 				skey = (unsigned char*)(malloc(int(skeylen)));
+				if(!skey){
+					printf("ERROR: unable to allocate a buffer.\n");
+					pthread_exit(NULL);
+				}
 				
 				if(!skey){
 					perror("Errore: durante il protocollo DH impossibile allocare skey.\n");
