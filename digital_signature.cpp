@@ -87,6 +87,11 @@ bool sendAndSignMsg(int socket,char* userName, unsigned char* msg_to_sign,int me
 	
 	
 	unsigned char* sendBuffer = (unsigned char*)malloc(messageLen + sgnt_size);
+	if(!sendBuffer){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	memset(sendBuffer,0,messageLen + sgnt_size);
 	memcpy(sendBuffer,msg_to_sign,messageLen);
 	memcpy(sendBuffer + messageLen,sgnt_buf,sgnt_size);
@@ -125,16 +130,21 @@ bool verifySignMsg(char* userName, unsigned char* msg_signed,int messageLength,E
 	}
 	
 	long int clear_size = messageLength - SIZE_SIGNATURE;
+	long int sgnt_size = SIZE_SIGNATURE;
 	
 	unsigned char* clear_buf;
 	clear_buf = (unsigned char*)malloc(clear_size);
+	unsigned char* sgnt_buf;
+	sgnt_buf = (unsigned char*)malloc(sgnt_size);
+	
+	if(!clear_buf || !sgnt_buf){
+		printf("ERROR: an error occurred during the allocation of a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	memset(clear_buf,0,clear_size);
 	memcpy(clear_buf,msg_signed,clear_size);
 	
-	long int sgnt_size = SIZE_SIGNATURE;
-   
-	unsigned char* sgnt_buf;
-	sgnt_buf = (unsigned char*)malloc(sgnt_size);
 	memset(sgnt_buf,0,sgnt_size); 
 	memcpy(sgnt_buf,msg_signed + clear_size,sgnt_size);
    

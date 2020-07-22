@@ -21,10 +21,15 @@ void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,
   	
     EVP_CIPHER_CTX *ctx;
     unsigned char* ciphertext=(unsigned char*)malloc(plaintext_len);
-    
     unsigned char* iv=(unsigned char*)malloc(SIZE_IV);
     unsigned char* aad=(unsigned char*)malloc(SIZE_IV);
     unsigned char* tag=(unsigned char*)malloc(SIZE_TAG);
+    
+    if(!ciphertext || !iv || !aad || !tag){
+		printf("ERROR: unable to allocate a buffer.\n");
+		pthread_exit(NULL);
+	}
+    
     RAND_poll();
     RAND_bytes((unsigned char*)&iv[0],SIZE_IV);
     //RAND_bytes((unsigned char*)&aad[0],aad_len);
@@ -68,6 +73,12 @@ void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,
     c->tag = tag;
 
     c->all = (unsigned char*)malloc(ciphertext_len + 2 * SIZE_IV + SIZE_TAG);
+    
+    if(!c->all){
+		printf("ERROR: an error occurred during the allocation of the buffer.\n");
+		pthread_exit(NULL);
+	}
+	
     memcpy(c->all,ciphertext,ciphertext_len);
     memcpy(c->all+ciphertext_len, iv, SIZE_IV);
     //memcpy(c->all+ciphertext_len+iv_len, aad, iv_len);
@@ -81,21 +92,26 @@ void gcm_encrypt(unsigned char *plaintext, int plaintext_len,unsigned char *key,
 bool gcm_decrypt(unsigned char *key,unsigned char* all, int all_len,unsigned char* pt){
 
     int ciphertext_len = all_len - SIZE_IV - SIZE_TAG; //iv add tag
-    unsigned char *plaintext=(unsigned char*)malloc(ciphertext_len);
-    unsigned char* ciphertext=(unsigned char*)malloc(ciphertext_len);
-    memcpy(ciphertext,all,ciphertext_len);
-   
-    unsigned char* iv=(unsigned char*)malloc(SIZE_IV); 
-    memcpy(iv,all+ciphertext_len,SIZE_IV);
-
     int aad_len = SIZE_IV;
+    
+	unsigned char *plaintext=(unsigned char*)malloc(ciphertext_len);
+    unsigned char* ciphertext=(unsigned char*)malloc(ciphertext_len);
+    unsigned char* iv=(unsigned char*)malloc(SIZE_IV); 
     unsigned char* aad=(unsigned char*)malloc(aad_len);
+    unsigned char* tag=(unsigned char*)malloc(SIZE_TAG);
+    
+    if(!plaintext || !ciphertext || !iv || !aad || !tag){
+		printf("ERROR: an error occurred during the allocation of the buffer.\n");
+		pthread_exit(NULL);
+	}
+	
+    memcpy(ciphertext,all,ciphertext_len);
+    memcpy(iv,all+ciphertext_len,SIZE_IV);
     aad=iv;
 
-    unsigned char* tag=(unsigned char*)malloc(SIZE_TAG);
     memcpy(tag,all + ciphertext_len + SIZE_IV,SIZE_TAG);
 
-     EVP_CIPHER_CTX *ctx;
+	EVP_CIPHER_CTX *ctx;
     int len;
     int plaintext_len;
     int ret;

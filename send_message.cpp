@@ -24,6 +24,11 @@ using namespace std;
 void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, char* username, bool serverCall,unsigned char* opRandomData){
 	
 	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE+SIZE_DH_PUBLIC_KEY_LEN+SIZE_RANDOM_DATA);
+	if(!msg_to_sign){
+		printf("ERROR: an error occured during the allocation of a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	socklen_t len=sizeof(*sv_addr);
 	int pos = 0;
 	int pkey_len_mex = pkey_len;
@@ -49,6 +54,10 @@ void send_DHmessage_info(int socket, int pkey_len,struct sockaddr_in* sv_addr, c
 void send_DHmessage(int socket,int pkey_len,struct sockaddr_in* sv_addr, unsigned char* myDHpubkey,char* username,bool serverCall,unsigned char* opRandomData){
 	
 	unsigned char* msg_to_sign = (unsigned char*)malloc(SIZE_OPCODE + pkey_len + SIZE_RANDOM_DATA);
+	if(!msg_to_sign){
+		printf("ERROR: an error occurred during the allocation of a buffer.\n");
+		pthread_exit(NULL);
+	}
 	
 	socklen_t len=sizeof(*sv_addr);
 	int pos = 0;
@@ -98,6 +107,11 @@ void send_signature_message(int socket,unsigned char* buffer,unsigned char* rand
 void send_certificate_message(int socket,unsigned char* certificate,int certificateLen,struct sockaddr_in* address,int address_size){
 	
 	unsigned char *bufferCertificateMessage = (unsigned char*)malloc(SIZE_OPCODE + certificateLen);
+	if(!bufferCertificateMessage){
+		printf("ERROR: an error occurred during the allocation of a buffer.\n");
+		pthread_exit(NULL);
+	}
+	
 	uint8_t opcodeMex = OPCODE_CERTIFICATE;
 	int ret = 0;
 	
