@@ -329,7 +329,7 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
     int pos = 0;
     struct timeval time;
     char challenging_user[255];
-    char chg_cmd[6];
+    char* chg_cmd = (char*) malloc(8);
     unsigned char adv_ip[SIZE_IP_ADDRESS];
     unsigned char adv_pubkey[2049];
     int challenge_id;
@@ -419,9 +419,9 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 
         cout << "Challenge request received from: " << challenging_user << " ! \n";
         cout << "Write ACCEPT to play otherwise write REFUSE \n";
-        cin >> chg_cmd;
+        //cin >> chg_cmd;
 		
-		/*if( fgets(chg_cmd,7,stdin) == NULL ){
+		if( fgets(chg_cmd,8,stdin) == NULL ){
 			cout<<"Error during insertion of the ACCEPT/REFUSE command !"<<endl;
 			exit(-1);
 		}
@@ -429,22 +429,30 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
 		char* p = strchr(chg_cmd,'\n');
 		if(p){
 			*p='\0';
-		}*/
+		}else{
+				int ch;
+				while (((ch = getchar()) != EOF) && (ch != '\n'));
+			}
 
-
+		
+		
         while (strcmp(chg_cmd, "ACCEPT") != 0 && strcmp(chg_cmd, "REFUSE") != 0) {
             cout << "Wrong command inserted, please retry!" << endl;
-            cin >> chg_cmd;
+            //cin >> chg_cmd;
 			
-			/*if( fgets(chg_cmd,6,stdin) == NULL ){
+			if( fgets(chg_cmd,8,stdin) == NULL ){
 				cout<<"Error during insertion of the ACCEPT/REFUSE command !"<<endl;
 				exit(-1);
 			}
 	
-			p = strchr(chg_cmd,'\n');
-			if(p){
-				*p='\0';
-			}*/
+			char* p2 = strchr(chg_cmd,'\n');
+			if(p2){
+				*p2='\0';
+			}else{
+				int ch;
+				while (((ch = getchar()) != EOF) && (ch != '\n'));
+			}
+						
 
         }
 
@@ -543,7 +551,8 @@ void wait(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv, sock
                
                 EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
                 
-				gameStart(adv_ip,1,pubkey_adv,user);            
+				gameStart(adv_ip,1,pubkey_adv,user); 
+				int c=getchar();
 			}
         }
 
@@ -594,7 +603,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
     uint8_t rcv_seq_numb, rcv_opcode;
     int pos = 0;
     struct timeval time;
-    char challenged_user[255];
+    char* challenged_user=(char*) malloc(256);
     unsigned char adv_ip[SIZE_IP_ADDRESS];
     unsigned char adv_pubkey[2049];
     int challenge_id;
@@ -623,16 +632,21 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
     //now the user has to insert as input the name of the user who wants to challenge
     cout<<"Please insert the name of the challenged user ! \n";
     
-	cin>>challenged_user;
-	/*if( fgets(challenged_user,255,stdin) == NULL ){
+	//cin>>challenged_user;
+	if( fgets(challenged_user,256,stdin) == NULL ){
 		cout<<"Error during insertion of the challenged username !"<<endl;
 		}
-	
+		
 		char* p1 = strchr(challenged_user,'\n');
 		if(p1){
 			*p1='\0';
+		}else{
+			int ch;
+			while (((ch = getchar()) != EOF) && (ch != '\n'));
 		}
-   */
+		
+	
+   
    
     //now i send the challenge request to the inserted user
     send_challengeRequest(socket,sv_addr_priv,addr_size,buffer,user,challenged_user,++seq_numb,0,key);
@@ -803,6 +817,9 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
         EVP_PKEY* pubkey_adv = deserialize_PEM_pubkey(SIZE_PUBLIC_KEY,adv_pubkey);
         
 	gameStart(adv_ip,0,pubkey_adv,user);
+	int c=getchar();
+	
+	
     }
     
 
@@ -828,7 +845,7 @@ void challenge(int socket, sockaddr_in* sv_addr_main, sockaddr_in* sv_addr_priv,
 }
 
 int main() {
-    char cmd[10];
+    char* cmd=(char*) malloc (12);
     int sock;
     char ip_addr[] = "127.0.0.1";
     uint16_t port=7799;
@@ -837,7 +854,7 @@ int main() {
     struct sockaddr_in sv_addr_challenge;
     char*  available_users;
     int avail_len;
-	char* user = (char*) malloc(255);
+	char* user = (char*) malloc(256);
 	EVP_PKEY* server_pubkey;
 	unsigned char* shared_secret = (unsigned char*)malloc(EVP_MD_size(EVP_sha256()));
 	unsigned int shared_secretLen=0;
@@ -849,7 +866,7 @@ int main() {
 	
 	cout << "Inserisci nome utente:" << endl;
 	
-	if( fgets(user,255,stdin) == NULL ){
+	if( fgets(user,256,stdin) == NULL ){
 		cout<<"Error during insertion of the username !"<<endl;
 		exit(-1);
 	}
@@ -857,9 +874,12 @@ int main() {
 	char* p = strchr(user,'\n');
 	if(p){
 		*p='\0';
-	}
+	}else{
+			int ch;
+			while (((ch = getchar()) != EOF) && (ch != '\n'));
+		}
 
-    
+	
 
     memset(&sv_addr_main, 0, sizeof(sv_addr_main));
     sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -872,19 +892,24 @@ int main() {
 
     while(1){
         
+		
 		cout << "Inserisci un comando, per aiuto digita !help " << endl;
         
-		/*if( fgets(cmd,12,stdin) == NULL ){
+		if( fgets(cmd,12,stdin) == NULL ){
 		cout<<"Error during insertion of the command !"<<endl;
 		}
-	
+		
+			
+		
 		char* p1 = strchr(cmd,'\n');
 		if(p1){
 			*p1='\0';
-		}*/
+		}else{
+			int ch;
+			while (((ch = getchar()) != EOF) && (ch != '\n'));
+		}
 		
-		cin >> cmd;
-
+		//cin >> cmd;
 
         if (strcmp(cmd, "!help") == 0) {
             cout << "The available commands are: " << endl;
@@ -904,7 +929,7 @@ int main() {
 
         if (strcmp(cmd, "!challenge") == 0) {        
             challenge(sock,&sv_addr_main,&sv_addr_priv,&sv_addr_challenge,sizeof(sv_addr_main),user,available_users,avail_len,shared_secret);
-
+			fflush(stdin);
             continue;
         }
 
@@ -913,11 +938,12 @@ int main() {
             break;
         }
 
-        else {
+       else {
             cout << "the inserted command is wrong, please try with a new one or !help to see the command list!" << endl;
         }
 		
-		//memset(cmd,0,12);
+		
+		
     }
     return 0;
 }
